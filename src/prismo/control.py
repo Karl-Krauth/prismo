@@ -1,29 +1,65 @@
+import collections
+import os
+
 import numpy as np
 import pymmcore
 
 
-def load(config):
+def load(config, path=None):
     core = pymmcore.CMMCore()
-    core.setDeviceAdapterSearchPaths(["/usr/local/lib/micro-manager"])
+    if path is None:
+        if os.name == "nt":
+            path = "C:/Program Files/Micro-Manager-2.0"
+        else:
+            path = "/usr/local/lib/micro-manager"
+
+    os.environ["PATH"] += os.pathsep + path
+    core.setDeviceAdapterSearchPaths([path])
+
     cameras = []
     stages = []
-    filters = []
-    for name, params in config.items():
-        device = params["device"]
-        if device == "demo_camera":
-            core.loadDevice(name, "DemoCamera", "DCam")
-            core.initializeDevice(name)
-            cameras.append(Camera(name, core))
-        elif device == "demo_stage":
-            core.loadDevice(name, "DemoCamera", "DXYStage")
-            core.initializeDevice(name)
-            stages.append(Stage(name, core))
-        elif device == "demo_filter":
-            core.loadDevice(name, "DemoCamera", "DWheel")
-            core.initializeDevice(name)
-            filters.append(Filter(name, core, params.get("channels")))
+    selectors = []
+    loaded = set()
+    D = collections.namedtuple("Device", ["parent", "type", "module", "device"])
+    devices = {
+        "andor_zyla_camera": D(None, "camera", "AndorSDK3", "Andor sCMOS Camera"),
+        "mm_demo_camera": D(None, "camera", "DemoCamera", "DCam"),
+        "mm_demo_filter": D(None, "selector", "DemoCamera", "DWheel"),
+        "mm_demo_stage": D(None, "stage", "DemoCamera", "DXYStage"),
+        "nikon_ti_hub": D(None, "hub", "NikonTI", "TIScope"),
+        "nikon_ti_filter1": D("nikon_ti_hub", "selector", "NikonTI", "TIFilterBlock1"),
+        "nikon_ti_filter2": D("nikon_ti_hub", "selector", "NikonTI", "TIFilterBlock2"),
+        "nikon_ti_objective": D("nikon_ti_hub", "selector", "NikonTI", "TINosePiece"),
+    }
 
-    return Control(cameras=cameras, stages=stages, filters=filters)
+    def load_device(name, params):
+        device_id = params["device"]
+        if device_id not in devices:
+            raise ValueError(f"Device {device_id} is not recognized.")
+        device = devices[device_id]
+
+        if device.parent is not None and device.parent not in loaded:
+            load_device(device.parent, {"device": device.parent})
+
+        core.loadDevice(name, device.module, device.device)
+        core.initializeDevice(name)
+        loaded.add(device_id)
+
+        if device.type == "camera":
+            cameras.append(Camera(name, core))
+        elif device.type == "stage":
+            stages.append(Stage(name, core))
+        elif device.type == "selector":
+            selectors.append(Selector(name, core, params.get("states")))
+
+    for name, params in config.items():
+        try:
+            load_device(name, params)
+        except Exception as e:
+            core.reset()
+            raise e
+
+    return Control(core, cameras=cameras, stages=stages, selectors=selectors)
 
 
 def to_list(l):
@@ -32,10 +68,11 @@ def to_list(l):
     return l
 
 class Control:
-    def __init__(self, cameras=None, stages=None, filters=None):
-        super(Control, self).__setattr__("filters", to_list(filters))
+    def __init__(self, core, cameras=None, stages=None, selectors=None):
+        super(Control, self).__setattr__("selectors", to_list(selectors))
         self.cameras = to_list(cameras)
         self.stages = to_list(stages)
+        self._core = core
 
         if self.cameras is not None:
             self._camera_idx = 0
@@ -98,9 +135,9 @@ class Control:
         self.stages[self._stage_idx].xy = new_xy
 
     def __getattr__(self, name):
-        for filter in self.filters:
-            if name == filter.name:
-                return filter.channel
+        for selector in self.selectors:
+            if name == selector.name:
+                return selector.state
 
         for camera in self.cameras:
             if name == camera.name:
@@ -113,11 +150,23 @@ class Control:
         return self.__getattribute__(name)
 
     def __setattr__(self, name, value):
-        for filter in self.filters:
-            if name == filter.name:
-                filter.channel = value
+        for selector in self.selectors:
+            if name == selector.name:
+                selector.state = value
                 return
         super(Control, self).__setattr__(name, value)
+
+    def close(self):
+        self._core.reset()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._core.reset()
+
+    def __del__(self):
+        self._core.reset()
 
 
 class Camera:
@@ -161,31 +210,31 @@ class Stage:
         self._core.setXYPosition(self.name, new_xy[0], new_xy[1])
 
 
-class Filter:
-    def __init__(self, name, core, channels=None):
+class Selector:
+    def __init__(self, name, core, states=None):
         self.name = name
-        self.channels = channels
+        self.states = states
         self._core = core
 
-        n_channels = self._core.getNumberOfStates(name)
-        if channels is None:
-            self.channels = [i for i in range(n_channels)]
+        n_states = self._core.getNumberOfStates(name)
+        if states is None:
+            self.states = [i for i in range(n_states)]
         else:
-            if len(self.channels) < n_channels:
-                raise ValueError(f"Filter {name} has more channels than specified.")
-            for i, channel in enumerate(self.channels):
-                self._core.defineStateLabel(name, i, channel)
+            if len(self.states) < n_states:
+                raise ValueError(f"{name} requires {n_states} states (not {len(self.states)}) to be specified.")
+            for i, state in enumerate(self.states):
+                self._core.defineStateLabel(name, i, state)
 
     @property
-    def channel(self):
-        if isinstance(self.channels[0], int):
+    def state(self):
+        if isinstance(self.states[0], int):
             return self._core.getState(self.name)
         else:
             return self._core.getStateLabel(self.name)
 
-    @channel.setter
-    def channel(self, new_channel):
-        if isinstance(new_channel, int):
-            self._core.setState(self.name, new_channel)
+    @state.setter
+    def state(self, new_state):
+        if isinstance(new_state, int):
+            self._core.setState(self.name, new_state)
         else:
-            self._core.setStateLabel(self.name, new_channel)
+            self._core.setStateLabel(self.name, new_state)
