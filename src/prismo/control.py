@@ -1,5 +1,6 @@
 import collections
 import os
+from typing import runtime_checkable, Protocol
 
 import numpy as np
 import pymmcore
@@ -16,13 +17,7 @@ def load(config, path=None):
     os.environ["PATH"] += os.pathsep + path
     core.setDeviceAdapterSearchPaths([path])
 
-    cameras = []
-    stages = []
-    selectors = []
-    shutters = []
-    loaded = set()
-    D = collections.namedtuple("Device", ["type", "module", "device", "parent", "config", "port_config"], defaults=[None, None, None])
-    p = {
+    port_defaults = {
         "AnswerTimeout": "500.0",
         "BaudRate": "9600",
         "DTR": "Disable",
@@ -34,157 +29,165 @@ def load(config, path=None):
         "StopBits": "1",
         "Verbose": "1",
     }
-    devices = {
-        "andor_zyla_camera": D("camera", "AndorSDK3", "Andor sCMOS Camera"),
-        "mm_demo_camera": D("camera", "DemoCamera", "DCam"),
-        "mm_demo_filter": D("selector", "DemoCamera", "DWheel"),
-        "mm_demo_stage": D("stage", "DemoCamera", "DXYStage"),
-        "lumencor_sola_light": D("shutter", "LumencorSpectra", "Spectra", config={"SetLE_Type": "Sola"}, port_config=p),
-        "nikon_ti_hub": D("hub", "NikonTI", "TIScope"),
-        "nikon_ti_filter1": D("selector", "NikonTI", "TIFilterBlock1", parent="nikon_ti_hub"),
-        "nikon_ti_filter2": D("selector", "NikonTI", "TIFilterBlock2", parent="nikon_ti_hub"),
-        "nikon_ti_objective": D("selector", "NikonTI", "TINosePiece", parent="nikon_ti_hub"),
-    }
 
+    def set_props(name, props):
+        for k, v in props.items():
+            core.setProperty(name, k, v)
+
+    devices = []
     ports = {}
-    for params in config.values():
-        if "port" in params:
-            ports[params["port"]] = devices[params["device"]].port_config
+    for name, params in config.items():
+        device = params.get("device")
+        if device is None or device not in ("sola_light",):
+            continue
+        if "port" not in params:
+            raise ValueError(f"{name} requires a port to be specified.")
+
+        port = params["port"]
+        if device == "sola_light":
+            ports[port] = dict(port_defaults)
+
     for port, params in ports.items():
-        if port in config:
-            params.update(config["port"])
         core.loadDevice(port, "SerialManager", port)
-        for k, v in params.items():
-            core.setProperty(port, k, v)
-
-    def load_device(name, params):
-        device_id = params["device"]
-        if device_id not in devices:
-            raise ValueError(f"Device {device_id} is not recognized.")
-        device = devices[device_id]
-
-        # MMCore assumes parents are loaded before children.
-        if device.parent is not None and device.parent not in loaded:
-            load_device(device.parent, {"device": device.parent})
-
-        core.loadDevice(name, device.module, device.device)
-        loaded.add(device_id)
-
-        for k, v in params.items():
-            if k == "port":
-                core.setProperty(name, "Port", v)
-            elif k not in ["device", "states"]:
-                core.setProperty(name, k, v)
-
-        if device.type == "camera":
-            cameras.append(Camera(name, core))
-        elif device.type == "stage":
-            stages.append(Stage(name, core))
-        elif device.type == "selector":
-            selectors.append(Selector(name, core, params.get("states")))
-        elif device.type == "shutter":
-            shutters.append(Shutter(name, core))
+        if port in config:
+            params.update(config[port])
+        set_props(port, params)
+        core.initializeDevice(port)
 
     for name, params in config.items():
-        if name not in ports:
-            load_device(name, params)
+        if name in ports:
+            continue
+        
+        device = params["device"]
+        if (device in ("ti_filter1", "ti_filter2", "ti_objective") and
+            "ti_scope" not in core.getLoadedDevices()):
+            core.loadDevice("ti_scope", "NikonTI", "TIScope")
+            core.initializeDevice("ti_scope")
 
-    core.initializeAllDevices()
-    return Control(core, cameras=cameras, stages=stages, selectors=selectors, shutters=shutters)
+        if device == "zyla_camera":
+            core.loadDevice(name, "AndorSDK3", "Andor sCMOS Camera")
+            core.initializeDevice(name)
+            devices.append(Camera(name, core))
+        elif device == "demo_camera":
+            core.loadDevice(name, "DemoCamera", "DCam")
+            core.initializeDevice(name)
+            devices.append(Camera(name, core))
+        elif device == "demo_filter":
+            core.loadDevice(name, "DemoCamera", "DWheel")
+            core.initializeDevice(name)
+            devices.append(Stage(name, core))
+        elif device == "demo_stage":
+            core.loadDevice(name, "DemoCamera", "DXYStage")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, states=params.get("states")))
+        elif device == "sola_light":
+            core.loadDevice(name, "LumencorSpectra", "Spectra")
+            core.setProperty(name, "SetLE_Type", "Sola")
+            core.setProperty(name, "Port", params["port"])
+            core.initializeDevice(name)
+            devices.append(SolaLight(name, core))
+        elif device == "ti_filter1":
+            core.loadDevice(name, "NikonTI", "TIFilterBlock1")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, params.get("states")))
+        elif device == "ti_filter2":
+            core.loadDevice(name, "NikonTI", "TIFilterBlock2")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, params.get("states")))
+        elif device == "ti_objective":
+            core.loadDevice(name, "NikonTI", "TINosePiece")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, params.get("states")))
+        else:
+            raise ValueError(f"Device {device} is not recognized.")
 
+        for k, v in params.items():
+            if k not in ["port", "device", "states"]:
+                core.setProperty(name, k, v)
 
-def to_list(l):
-    if l is None:
-        return []
-    return l
+    for port in ports:
+        if port in config:
+            set_props(port, config[port])
+
+    return Control(core, devices=devices)
+
 
 class Control:
-    def __init__(self, core, cameras=None, stages=None, selectors=None, shutters=None):
-        super(Control, self).__setattr__("selectors", to_list(selectors))
-        self.cameras = to_list(cameras)
-        self.stages = to_list(stages)
-        self.shutters = to_list(shutters)
+    def __init__(self, core, devices=None):
+        if devices is None:
+            devices = {}
+        super(Control, self).__setattr__("devices", devices)
         self._core = core
 
-        if self.cameras is not None:
-            self._camera_idx = 0
-        else:
-            self._camera_idx = None
+        self._camera = None
+        for device in self.devices:
+            if isinstance(device, Camera):
+                self._camera = device
+                break
 
-        if self.stages is not None:
-            self._stage_idx = 0
-        else:
-            self._stage_idx = None
+        self._stage = None
+        for device in self.devices:
+            if isinstance(device, Stage):
+                self._stage = device
+                break
 
     @property
-    def default_camera(self):
-        if len(self.cameras) == 0:
-            return None
-        else:
-            return self.cameras[self._camera_idx].name
+    def camera(self):
+        return self._camera.name if self._camera is not None else None
 
-    @default_camera.setter
-    def default_camera(self, new_camera):
-        for i, camera in enumerate(self.cameras):
-            if camera.name == new_camera:
-                self._camera_idx = i
+    @camera.setter
+    def camera(self, new_camera):
+        self._camera = self.devices[new_camera]
 
     def snap(self):
-        return self.cameras[self._camera_idx].snap()
+        return self._camera.snap()
 
     @property
-    def default_stage(self):
-        return self.stages[self._stage_idx].name
+    def stage(self):
+        return self._stage.name if self._stage is not None else None
 
-    @default_stage.setter
-    def default_stage(self, new_stage):
-        for i, stage in enumerate(self.stages):
-            if stage.name == new_stage:
-                self._stage_idx = i
+    @stage.setter
+    def stage(self, new_stage):
+        self._stage = self.devices[new_stage]
 
     @property
     def x(self):
-        return self.stages[self._stage_idx].x
+        return self._stage.x
 
     @x.setter
     def x(self, new_x):
-        self.stages[self._stage_idx].x = new_x
+        self._stage.x = new_x
 
     @property
     def y(self):
-        return self.stages[self._stage_idx].y
+        return self._stage.y
 
     @y.setter
     def y(self, new_y):
-        self.stages[self._stage_idx].y = new_y
+        self._stage.y = new_y
 
     @property
     def xy(self):
-        return self.stages[self._stage_idx].xy
+        return self._stage.xy
 
     @xy.setter
     def xy(self, new_xy):
-        self.stages[self._stage_idx].xy = new_xy
+        self.self._stage.xy = new_xy
 
     def __getattr__(self, name):
-        for selector in self.selectors:
-            if name == selector.name:
-                return selector.state
-
-        for camera in self.cameras:
-            if name == camera.name:
-                return camera
-
-        for stage in self.stages:
-            if name == stage.name:
-                return stage
+        for device in self.devices:
+            if name == device.name:
+                if isinstance(device, Stateful):
+                    return device.state
+                else:
+                    return device
 
         return self.__getattribute__(name)
 
     def __setattr__(self, name, value):
-        for selector in self.selectors:
-            if name == selector.name:
-                selector.state = value
+        for device in self.devices:
+            if name == device.name and isinstance(device, Stateful):
+                device.state = value
                 return
         super(Control, self).__setattr__(name, value)
 
@@ -242,6 +245,10 @@ class Stage:
         self._core.setXYPosition(self.name, new_xy[0], new_xy[1])
 
 
+@runtime_checkable
+class Stateful(Protocol):
+    state: str | int | float
+
 class Selector:
     def __init__(self, name, core, states=None):
         self.name = name
@@ -272,15 +279,15 @@ class Selector:
             self._core.setStateLabel(self.name, new_state)
 
 
-class Shutter:
+class SolaLight:
     def __init__(self, name, core):
         self.name = name
         self._core = core
 
     @property
-    def open(self):
-        return self._core.getShutterOpen(self.name)
+    def state(self):
+        return int(self._core.getProperty(self.name, "White_Level"))
 
-    @open.setter
-    def open(self, is_open):
-        self._core.setShutterOpen(self.name, is_open)
+    @state.setter
+    def state(self, new_state):
+        self._core.setProperty(self.name, "White_Level", new_state)
