@@ -19,18 +19,43 @@ def load(config, path=None):
     cameras = []
     stages = []
     selectors = []
+    shutters = []
     loaded = set()
-    D = collections.namedtuple("Device", ["parent", "type", "module", "device"])
-    devices = {
-        "andor_zyla_camera": D(None, "camera", "AndorSDK3", "Andor sCMOS Camera"),
-        "mm_demo_camera": D(None, "camera", "DemoCamera", "DCam"),
-        "mm_demo_filter": D(None, "selector", "DemoCamera", "DWheel"),
-        "mm_demo_stage": D(None, "stage", "DemoCamera", "DXYStage"),
-        "nikon_ti_hub": D(None, "hub", "NikonTI", "TIScope"),
-        "nikon_ti_filter1": D("nikon_ti_hub", "selector", "NikonTI", "TIFilterBlock1"),
-        "nikon_ti_filter2": D("nikon_ti_hub", "selector", "NikonTI", "TIFilterBlock2"),
-        "nikon_ti_objective": D("nikon_ti_hub", "selector", "NikonTI", "TINosePiece"),
+    D = collections.namedtuple("Device", ["type", "module", "device", "parent", "config", "port_config"], defaults=[None, None, None])
+    p = {
+        "AnswerTimeout": "500.0",
+        "BaudRate": "9600",
+        "DTR": "Disable",
+        "DataBits": "8",
+        "DelayBetweenCharsMs": "0.0",
+        "Fast USB to Serial": "Disable",
+        "Handshaking": "Off",
+        "Parity": "None",
+        "StopBits": "1",
+        "Verbose": "1",
     }
+    devices = {
+        "andor_zyla_camera": D("camera", "AndorSDK3", "Andor sCMOS Camera"),
+        "mm_demo_camera": D("camera", "DemoCamera", "DCam"),
+        "mm_demo_filter": D("selector", "DemoCamera", "DWheel"),
+        "mm_demo_stage": D("stage", "DemoCamera", "DXYStage"),
+        "lumencor_sola_light": D("shutter", "LumencorSpectra", "Spectra", config={"SetLE_Type": "Sola"}, port_config=p),
+        "nikon_ti_hub": D("hub", "NikonTI", "TIScope"),
+        "nikon_ti_filter1": D("selector", "NikonTI", "TIFilterBlock1", parent="nikon_ti_hub"),
+        "nikon_ti_filter2": D("selector", "NikonTI", "TIFilterBlock2", parent="nikon_ti_hub"),
+        "nikon_ti_objective": D("selector", "NikonTI", "TINosePiece", parent="nikon_ti_hub"),
+    }
+
+    ports = {}
+    for params in config.values():
+        if "port" in params:
+            ports[params["port"]] = devices[params["device"]].port_config
+    for port, params in ports.items():
+        if port in config:
+            params.update(config["port"])
+        core.loadDevice(port, "SerialManager", port)
+        for k, v in params.items():
+            core.setProperty(port, k, v)
 
     def load_device(name, params):
         device_id = params["device"]
@@ -38,12 +63,18 @@ def load(config, path=None):
             raise ValueError(f"Device {device_id} is not recognized.")
         device = devices[device_id]
 
+        # MMCore assumes parents are loaded before children.
         if device.parent is not None and device.parent not in loaded:
             load_device(device.parent, {"device": device.parent})
 
         core.loadDevice(name, device.module, device.device)
-        core.initializeDevice(name)
         loaded.add(device_id)
+
+        for k, v in params.items():
+            if k == "port":
+                core.setProperty(name, "Port", v)
+            elif k not in ["device", "states"]:
+                core.setProperty(name, k, v)
 
         if device.type == "camera":
             cameras.append(Camera(name, core))
@@ -51,15 +82,15 @@ def load(config, path=None):
             stages.append(Stage(name, core))
         elif device.type == "selector":
             selectors.append(Selector(name, core, params.get("states")))
+        elif device.type == "shutter":
+            shutters.append(Shutter(name, core))
 
     for name, params in config.items():
-        try:
+        if name not in ports:
             load_device(name, params)
-        except Exception as e:
-            core.reset()
-            raise e
 
-    return Control(core, cameras=cameras, stages=stages, selectors=selectors)
+    core.initializeAllDevices()
+    return Control(core, cameras=cameras, stages=stages, selectors=selectors, shutters=shutters)
 
 
 def to_list(l):
@@ -68,10 +99,11 @@ def to_list(l):
     return l
 
 class Control:
-    def __init__(self, core, cameras=None, stages=None, selectors=None):
+    def __init__(self, core, cameras=None, stages=None, selectors=None, shutters=None):
         super(Control, self).__setattr__("selectors", to_list(selectors))
         self.cameras = to_list(cameras)
         self.stages = to_list(stages)
+        self.shutters = to_list(shutters)
         self._core = core
 
         if self.cameras is not None:
@@ -238,3 +270,17 @@ class Selector:
             self._core.setState(self.name, new_state)
         else:
             self._core.setStateLabel(self.name, new_state)
+
+
+class Shutter:
+    def __init__(self, name, core):
+        self.name = name
+        self._core = core
+
+    @property
+    def open(self):
+        return self._core.getShutterOpen(self.name)
+
+    @open.setter
+    def open(self, is_open):
+        self._core.setShutterOpen(self.name, is_open)
