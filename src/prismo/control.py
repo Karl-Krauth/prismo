@@ -38,7 +38,7 @@ def load(config, path=None):
     }
     for name, params in config.items():
         device = params.get("device")
-        if device is None or device not in ("asi_stage", "sola_light"):
+        if device is None or device not in ("asi_stage", "lambda_filter1", "lambda_filter2", "lambda_shutter1", "lambda_shutter2", "sola_light"):
             continue
         if "port" not in params:
             raise ValueError(f"{name} requires a port to be specified.")
@@ -46,6 +46,8 @@ def load(config, path=None):
         port = params["port"]
         if device == "asi_stage":
             ports[port] = {**port_defaults, "AnswerTimeout": 2000.0}
+        elif device in ("lambda_filter1", "lambda_filter2", "lambda_shutter1", "lambda_shutter2"):
+            ports[port] = {**port_defaults, "AnswerTimeout": 2000.0, "BaudRate": 128000}
         elif device == "sola_light":
             ports[port] = dict(port_defaults)
 
@@ -83,6 +85,31 @@ def load(config, path=None):
             core.loadDevice(name, "DemoCamera", "DXYStage")
             core.initializeDevice(name)
             devices.append(Selector(name, core, states=params.get("states")))
+        elif device == "lambda_filter1":
+            core.loadDevice(name, "SutterLambda", "Wheel-A")
+            core.setProperty(name, "Port", params["port"])
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, states=params.get("states")))
+        elif device == "lambda_filter2":
+            core.loadDevice(name, "SutterLambda", "Wheel-B")
+            core.setProperty(name, "Port", params["port"])
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, states=params.get("states")))
+        elif device == "lambda_filter3":
+            core.loadDevice(name, "SutterLambda", "Wheel-C")
+            core.setProperty(name, "Port", params["port"])
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, states=params.get("states")))
+        elif device == "lambda_shutter1":
+            core.loadDevice(name, "SutterLambda", "Shutter-A")
+            core.setProperty(name, "Port", params["port"])
+            core.initializeDevice(name)
+            devices.append(Shutter(name, core))
+        elif device == "lambda_shutter2":
+            core.loadDevice(name, "SutterLambda", "Shutter-B")
+            core.setProperty(name, "Port", params["port"])
+            core.initializeDevice(name)
+            devices.append(Shutter(name, core))
         elif device == "sola_light":
             core.loadDevice(name, "LumencorSpectra", "Spectra")
             core.setProperty(name, "SetLE_Type", "Sola")
@@ -103,7 +130,7 @@ def load(config, path=None):
             core.loadDevice(name, "NikonTI", "TILightPath")
             core.setParentLabel(name, "ti_scope")
             core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states")))
+            devices.append(Selector(name, core, params.get("states", ["eye", "l100", "r100", "l80"])))
         elif device == "ti_focus":
             core.loadDevice(name, "NikonTI", "TIZDrive")
             core.setParentLabel(name, "ti_scope")
@@ -329,6 +356,28 @@ class Selector:
             self._core.setState(self.name, new_state)
         else:
             self._core.setStateLabel(self.name, new_state)
+
+
+class Shutter:
+    def __init__(self, name, core):
+        self.name = name
+        self._core = core
+
+    @property
+    def open(self):
+        return self._core.getShutterOpen(self.name)
+
+    @open.setter
+    def open(self, new_state):
+        self._core.setShutterOpen(self.name, new_state)
+
+    @property
+    def state(self):
+        return "open" if self.open else "closed"
+
+    @state.setter
+    def state(self, new_state):
+        self.open = new_state == "open"
 
 
 class SolaLight:
