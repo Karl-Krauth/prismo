@@ -17,6 +17,13 @@ def load(config, path=None):
     os.environ["PATH"] += os.pathsep + path
     core.setDeviceAdapterSearchPaths([path])
 
+
+    def set_props(name, props):
+        for k, v in props.items():
+            core.setProperty(name, k, v)
+
+    devices = []
+    ports = {}
     port_defaults = {
         "AnswerTimeout": "500.0",
         "BaudRate": "9600",
@@ -29,22 +36,17 @@ def load(config, path=None):
         "StopBits": "1",
         "Verbose": "1",
     }
-
-    def set_props(name, props):
-        for k, v in props.items():
-            core.setProperty(name, k, v)
-
-    devices = []
-    ports = {}
     for name, params in config.items():
         device = params.get("device")
-        if device is None or device not in ("sola_light",):
+        if device is None or device not in ("asi_stage", "sola_light"):
             continue
         if "port" not in params:
             raise ValueError(f"{name} requires a port to be specified.")
 
         port = params["port"]
-        if device == "sola_light":
+        if device == "asi_stage":
+            ports[port] = {**port_defaults, "AnswerTimeout": 2000.0}
+        elif device == "sola_light":
             ports[port] = dict(port_defaults)
 
     for port, params in ports.items():
@@ -64,10 +66,11 @@ def load(config, path=None):
             core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
 
-        if device == "zyla_camera":
-            core.loadDevice(name, "AndorSDK3", "Andor sCMOS Camera")
+        if device == "asi_stage":
+            core.loadDevice(name, "ASIStage", "XYStage")
+            core.setProperty(name, "Port", params["port"])
             core.initializeDevice(name)
-            devices.append(Camera(name, core))
+            devices.append(Stage(name, core))
         elif device == "demo_camera":
             core.loadDevice(name, "DemoCamera", "DCam")
             core.initializeDevice(name)
@@ -98,6 +101,10 @@ def load(config, path=None):
             core.loadDevice(name, "NikonTI", "TINosePiece")
             core.initializeDevice(name)
             devices.append(Selector(name, core, params.get("states")))
+        elif device == "zyla_camera":
+            core.loadDevice(name, "AndorSDK3", "Andor sCMOS Camera")
+            core.initializeDevice(name)
+            devices.append(Camera(name, core))
         else:
             raise ValueError(f"Device {device} is not recognized.")
 
