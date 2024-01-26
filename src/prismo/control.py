@@ -61,7 +61,7 @@ def load(config, path=None):
             continue
         
         device = params["device"]
-        if (device in ("ti_filter1", "ti_filter2", "ti_objective") and
+        if (device in ("ti_focus", "ti_filter1", "ti_filter2", "ti_lightpath", "ti_objective") and
             "ti_scope" not in core.getLoadedDevices()):
             core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
@@ -91,14 +91,27 @@ def load(config, path=None):
             devices.append(SolaLight(name, core))
         elif device == "ti_filter1":
             core.loadDevice(name, "NikonTI", "TIFilterBlock1")
+            core.setParentLabel(name, "ti_scope")
             core.initializeDevice(name)
             devices.append(Selector(name, core, params.get("states")))
         elif device == "ti_filter2":
             core.loadDevice(name, "NikonTI", "TIFilterBlock2")
+            core.setParentLabel(name, "ti_scope")
             core.initializeDevice(name)
             devices.append(Selector(name, core, params.get("states")))
+        elif device == "ti_lightpath":
+            core.loadDevice(name, "NikonTI", "TILightPath")
+            core.setParentLabel(name, "ti_scope")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, params.get("states")))
+        elif device == "ti_focus":
+            core.loadDevice(name, "NikonTI", "TIZDrive")
+            core.setParentLabel(name, "ti_scope")
+            core.initializeDevice(name)
+            devices.append(Focus(name, core))
         elif device == "ti_objective":
             core.loadDevice(name, "NikonTI", "TINosePiece")
+            core.setParentLabel(name, "ti_scope")
             core.initializeDevice(name)
             devices.append(Selector(name, core, params.get("states")))
         elif device == "zyla_camera":
@@ -111,10 +124,6 @@ def load(config, path=None):
         for k, v in params.items():
             if k not in ["port", "device", "states"]:
                 core.setProperty(name, k, v)
-
-    for port in ports:
-        if port in config:
-            set_props(port, config[port])
 
     return Control(core, devices=devices)
 
@@ -138,6 +147,12 @@ class Control:
                 self._stage = device
                 break
 
+        self._focus = None
+        for device in self.devices:
+            if isinstance(device, Focus):
+                self._focus = device
+                break
+
     @property
     def camera(self):
         return self._camera.name if self._camera is not None else None
@@ -148,6 +163,22 @@ class Control:
 
     def snap(self):
         return self._camera.snap()
+
+    @property
+    def focus(self):
+        return self._focus.name if self._focus is not None else None
+
+    @focus.setter
+    def focus(self, new_focus):
+        self._focus = self.devices[new_focus]
+
+    @property
+    def z(self):
+        return self._focus.z
+
+    @z.setter
+    def z(self, new_z):
+        self._focus.z = new_z
 
     @property
     def stage(self):
@@ -220,6 +251,20 @@ class Camera:
         self._core.setCameraDevice(self.name)
         self._core.snapImage()
         return self._core.getImage()
+
+
+class Focus:
+    def __init__(self, name, core):
+        self.name = name
+        self._core = core
+
+    @property
+    def z(self):
+        return self._core.getPosition(self.name)
+
+    @z.setter
+    def z(self, new_z):
+        self._core.setPosition(self.name, new_z)
 
 
 class Stage:
