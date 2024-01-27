@@ -237,7 +237,7 @@ class Control:
 
     @xy.setter
     def xy(self, new_xy):
-        self.self._stage.xy = new_xy
+        self._stage.xy = new_xy
 
     def __getattr__(self, name):
         for device in self.devices:
@@ -277,7 +277,7 @@ class Camera:
     def snap(self):
         self._core.setCameraDevice(self.name)
         self._core.snapImage()
-        return self._core.getImage()
+        return np.flipud(self._core.getImage())
 
 
 class Focus:
