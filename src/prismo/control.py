@@ -4,9 +4,11 @@ from typing import runtime_checkable, Protocol
 
 import numpy as np
 import pymmcore
+import pymodbus.client
 
 
 def load(config, path=None):
+    client = None
     core = pymmcore.CMMCore()
     if path is None:
         if os.name == "nt":
@@ -141,6 +143,11 @@ def load(config, path=None):
             core.setParentLabel(name, "ti_scope")
             core.initializeDevice(name)
             devices.append(Selector(name, core, params.get("states")))
+        elif device == "wago_valves":
+            if client is None:
+                client = pymodbus.client.ModbusTcpClient(params["ip"])
+                client.connect()
+            devices.append(Valves(name, client, params.get("valves")))
         elif device == "zyla_camera":
             core.loadDevice(name, "AndorSDK3", "Andor sCMOS Camera")
             core.initializeDevice(name)
@@ -149,7 +156,7 @@ def load(config, path=None):
             raise ValueError(f"Device {device} is not recognized.")
 
         for k, v in params.items():
-            if k not in ["port", "device", "states"]:
+            if k not in ["port", "device", "states", "valves", "ip"]:
                 core.setProperty(name, k, v)
 
     return Control(core, devices=devices)
@@ -190,6 +197,14 @@ class Control:
 
     def snap(self):
         return self._camera.snap()
+
+    @property
+    def exposure(self):
+        return self._camera.exposure
+
+    @exposure.setter
+    def exposure(self, new_exposure):
+        self._camera.exposure = new_exposure
 
     @property
     def focus(self):
@@ -278,6 +293,14 @@ class Camera:
         self._core.setCameraDevice(self.name)
         self._core.snapImage()
         return np.flipud(self._core.getImage())
+
+    @property
+    def exposure(self):
+        return self._core.getExposure(self.name)
+
+    @exposure.setter
+    def exposure(self, new_exposure):
+        self._core.setExposure(self.name, new_exposure)
 
 
 class Focus:
@@ -392,3 +415,27 @@ class SolaLight:
     @state.setter
     def state(self, new_state):
         self._core.setProperty(self.name, "White_Level", new_state)
+
+
+class Valves:
+    def __init__(self, name, client, valves=None):
+        self.name = name
+        if valves is None:
+            valves = [i for i in range(48)]
+        self.valves = valves
+        self._client = client
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            addr = key
+        else:
+            addr = self.valves.index(key)
+        addr += 512
+        return "open" if self._client.read_coils(addr, 1).bits[0] else "closed"
+
+    def __setitem__(self, key, value):
+        if isinstance(key, int):
+            addr = key
+        else:
+            addr = self.valves.index(key)
+        self._client.write_coil(addr, value == "open")
