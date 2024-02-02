@@ -69,6 +69,10 @@ def load(config, path=None):
             "ti_scope" not in core.getLoadedDevices()):
             core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
+        elif (device in ("ti2_focus", "ti2_filter1", "ti2_filter2", "ti2_lightpath", "ti2_objective") and
+            "ti_scope" not in core.getLoadedDevices()):
+            core.loadDevice("ti_scope", "NikonTI", "TIScope")
+            core.initializeDevice("ti_scope")
 
         if device == "asi_stage":
             core.loadDevice(name, "ASIStage", "XYStage")
@@ -141,6 +145,31 @@ def load(config, path=None):
         elif device == "ti_objective":
             core.loadDevice(name, "NikonTI", "TINosePiece")
             core.setParentLabel(name, "ti_scope")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, params.get("states")))
+        elif device == "ti2_filter1":
+            core.loadDevice(name, "NikonTi2", "FilterTurret1")
+            core.setParentLabel(name, "ti2_scope")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, params.get("states")))
+        elif device == "ti2_filter2":
+            core.loadDevice(name, "NikonTi2", "FilterTurret2")
+            core.setParentLabel(name, "ti2_scope")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, params.get("states")))
+        elif device == "ti2_lightpath":
+            core.loadDevice(name, "NikonTi2", "LightPath")
+            core.setParentLabel(name, "ti_scope")
+            core.initializeDevice(name)
+            devices.append(Selector(name, core, params.get("states", ["eye", "l100", "r100", "l80"])))
+        elif device == "ti2_focus":
+            core.loadDevice(name, "NikonTi2", "ZDrive")
+            core.setParentLabel(name, "ti2_scope")
+            core.initializeDevice(name)
+            devices.append(Focus(name, core))
+        elif device == "ti2_objective":
+            core.loadDevice(name, "NikonTi2", "IntermediateMagnification")
+            core.setParentLabel(name, "ti2_scope")
             core.initializeDevice(name)
             devices.append(Selector(name, core, params.get("states")))
         elif device == "wago_valves":
