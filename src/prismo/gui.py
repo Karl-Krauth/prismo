@@ -13,7 +13,10 @@ def live(control):
     @thread_worker(connect={"yielded": update_img})
     def snap_img():
         while True:
-            yield control.snap()
+            try:
+                yield control.snap()
+            except Exception as e:
+                print(e)
 
     worker = snap_img()
     return viewer, worker

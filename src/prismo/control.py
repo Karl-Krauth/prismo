@@ -116,6 +116,9 @@ def load(config, path=None):
             core.setProperty(name, "Port", params["port"])
             core.initializeDevice(name)
             devices.append(Shutter(name, core))
+        elif device == "mux":
+            devices.append(Mux(name, params["mapping"], valves))
+            continue
         elif device == "sola_light":
             core.loadDevice(name, "LumencorSpectra", "Spectra")
             core.setProperty(name, "SetLE_Type", "Sola")
@@ -177,6 +180,7 @@ def load(config, path=None):
                 client = pymodbus.client.ModbusTcpClient(params["ip"])
                 client.connect()
             devices.append(Valves(name, client, params.get("valves")))
+            valves = devices[-1]
         elif device == "zyla_camera":
             core.loadDevice(name, "AndorSDK3", "Andor sCMOS Camera")
             core.initializeDevice(name)
@@ -215,6 +219,11 @@ class Control:
             if isinstance(device, Focus):
                 self._focus = device
                 break
+
+    def wait(self):
+        for device in self.devices:
+            if isinstance(device, Waitable):
+                device.wait()
 
     @property
     def camera(self):
@@ -323,6 +332,9 @@ class Camera:
         self._core.snapImage()
         return np.flipud(self._core.getImage())
 
+    def wait(self):
+        self._core.waitForDevice(self.name)
+
     @property
     def exposure(self):
         return self._core.getExposure(self.name)
@@ -337,6 +349,9 @@ class Focus:
         self.name = name
         self._core = core
 
+    def wait(self):
+        self._core.waitForDevice(self.name)
+
     @property
     def z(self):
         return self._core.getPosition(self.name)
@@ -350,6 +365,9 @@ class Stage:
     def __init__(self, name, core):
         self.name = name
         self._core = core
+
+    def wait(self):
+        self._core.waitForDevice(self.name)
 
     @property
     def x(self):
@@ -380,6 +398,10 @@ class Stage:
 class Stateful(Protocol):
     state: str | int | float
 
+@runtime_checkable
+class Waitable(Protocol):
+    def wait() -> None: ...
+
 class Selector:
     def __init__(self, name, core, states=None):
         self.name = name
@@ -394,6 +416,9 @@ class Selector:
                 raise ValueError(f"{name} requires {n_states} states (not {len(self.states)}) to be specified.")
             for i, state in enumerate(self.states):
                 self._core.defineStateLabel(name, i, state)
+
+    def wait(self):
+        self._core.waitForDevice(self.name)
 
     @property
     def state(self):
@@ -414,6 +439,9 @@ class Shutter:
     def __init__(self, name, core):
         self.name = name
         self._core = core
+
+    def wait(self):
+        self._core.waitForDevice(self.name)
 
     @property
     def open(self):
@@ -436,6 +464,9 @@ class SolaLight:
     def __init__(self, name, core):
         self.name = name
         self._core = core
+
+    def wait(self):
+        self._core.waitForDevice(self.name)
 
     @property
     def state(self):
@@ -460,11 +491,65 @@ class Valves:
         else:
             addr = self.valves.index(key)
         addr += 512
-        return "open" if self._client.read_coils(addr, 1).bits[0] else "closed"
+        return 0 if self._client.read_coils(addr, 1).bits[0] else 1
 
     def __setitem__(self, key, value):
         if isinstance(key, int):
             addr = key
         else:
             addr = self.valves.index(key)
-        self._client.write_coil(addr, value == "open")
+        self._client.write_coil(addr, (value == "off") or (value == 0))
+
+
+class Mux: 
+    def __init__(self, name, mapping, valves):
+        self.name = name
+        num_bits = (len(mapping) - 2) // 2
+        self._zeros = [mapping[f"{i}_0"] for i in reversed(range(num_bits))]
+        self._ones = [mapping[f"{i}_1"] for i in reversed(range(num_bits))]
+        self._waste = mapping["waste"]
+        self._io = mapping["io"]
+        self._all = self._zeros + self._ones + [self._waste, self._io]
+        self._valves = valves
+
+    @property
+    def state(self):
+        waste_state = 1 - self._valves[self._waste]
+        io_state = 1 - self._valves[self._io]
+        zeros_state = np.array([1 - self._valves[v] for v in self._zeros])
+        ones_state = np.array([1 - self._valves[v] for v in self._ones])
+        all_state = np.array([1 - self._valves[v] for v in self._all])
+        print(zeros_state)
+        print(ones_state)
+        if np.all(all_state):
+            return "open"
+        elif not np.any(all_state):
+            return "closed"
+        elif waste_state and not io_state and not np.any(zeros_state) and not np.any(ones_state):
+            return "waste"
+        elif np.all(zeros_state + ones_state == 1) and io_state:
+            return sum(b * 2 ** i for i, b in enumerate(reversed(ones_state)))
+        else:
+            return "invalid"
+
+    @state.setter
+    def state(self, new_state):
+        if new_state == "open":
+            for v in self._all:
+                self._valves[v] = 0
+        elif new_state == "closed":
+            for v in self._all:
+                self._valves[v] = 1
+        elif new_state == "waste":
+            for v in self._all:
+                self._valves[v] = 1
+            self._valves[self._waste] = 0
+        else:
+            for v in self._all:
+                self._valves[v] = 1
+            for i, b in enumerate(bin(new_state)[2:].zfill(len(self._ones))):
+                if b == "0":
+                    self._valves[self._zeros[i]] = 0
+                else:
+                    self._valves[self._ones[i]] = 0
+            self._valves[self._io] = 0
