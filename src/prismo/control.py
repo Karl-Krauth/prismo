@@ -70,9 +70,9 @@ def load(config, path=None):
             core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
         elif (device in ("ti2_focus", "ti2_filter1", "ti2_filter2", "ti2_lightpath", "ti2_objective") and
-            "ti_scope" not in core.getLoadedDevices()):
-            core.loadDevice("ti_scope", "NikonTI", "TIScope")
-            core.initializeDevice("ti_scope")
+            "ti2_scope" not in core.getLoadedDevices()):
+            core.loadDevice("ti2_scope", "NikonTi2", "Ti2-E__0")
+            core.initializeDevice("ti2_scope")
 
         if device == "asi_stage":
             core.loadDevice(name, "ASIStage", "XYStage")
@@ -118,6 +118,9 @@ def load(config, path=None):
             devices.append(Shutter(name, core))
         elif device == "mux":
             devices.append(Mux(name, params["mapping"], valves))
+            continue
+        elif device == "minichip":
+            devices.append(MiniChip(name, params["mapping"], valves))
             continue
         elif device == "sola_light":
             core.loadDevice(name, "LumencorSpectra", "Spectra")
@@ -171,7 +174,7 @@ def load(config, path=None):
             core.initializeDevice(name)
             devices.append(Focus(name, core))
         elif device == "ti2_objective":
-            core.loadDevice(name, "NikonTi2", "IntermediateMagnification")
+            core.loadDevice(name, "NikonTi2", "Nosepiece")
             core.setParentLabel(name, "ti2_scope")
             core.initializeDevice(name)
             devices.append(Selector(name, core, params.get("states")))
@@ -553,3 +556,67 @@ class Mux:
                 else:
                     self._valves[self._ones[i]] = 0
             self._valves[self._io] = 0
+
+class MiniChip:
+    def __init__(self, name, mapping, valves):
+        self.name = name
+        num_bits = (len(mapping) - 2) // 2
+        self._zeros = [mapping[f"{i}_0"] for i in reversed(range(num_bits))]
+        self._ones = [mapping[f"{i}_1"] for i in reversed(range(num_bits))]
+        self._all_io = self._zeros + self._ones
+        self._buttons = mapping["buttons"]
+        self._sandwiches = mapping["sandwiches"]
+        self._valves = valves
+
+    @property
+    def io(self):
+        zeros_state = np.array([1 - self._valves[v] for v in self._zeros])
+        ones_state = np.array([1 - self._valves[v] for v in self._ones])
+        all_state = np.array([1 - self._valves[v] for v in self._all_io])
+        if np.all(all_state):
+            return "open"
+        elif not np.any(all_state):
+            return "closed"
+        elif np.all(zeros_state + ones_state == 1):
+            return sum(b * 2 ** i for i, b in enumerate(reversed(ones_state)))
+        else:
+            return "invalid"
+
+    @io.setter
+    def io(self, new_state):
+        if new_state == "open":
+            for v in self._all_io:
+                self._valves[v] = 0
+        elif new_state == "closed":
+            for v in self._all_io:
+                self._valves[v] = 1
+        else:
+            for v in self._all_io:
+                self._valves[v] = 1
+            for i, b in enumerate(bin(new_state)[2:].zfill(len(self._ones))):
+                if b == "0":
+                    self._valves[self._zeros[i]] = 0
+                else:
+                    self._valves[self._ones[i]] = 0
+
+    @property
+    def btn(self):
+        return "closed" if self._valves[self._buttons] else "open"
+
+    @btn.setter
+    def btn(self, new_state):
+        if new_state == "open" or not new_state:
+            self._valves[self._buttons] = "off"
+        else:
+            self._valves[self._buttons] = "on"
+
+    @property
+    def snw(self):
+        return "closed" if self._valves[self._sandwiches] else "open"
+
+    @snw.setter
+    def snw(self, new_state):
+        if new_state == "open" or not new_state:
+            self._valves[self._sandwiches] = "off"
+        else:
+            self._valves[self._sandwiches] = "on"
