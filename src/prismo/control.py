@@ -3,8 +3,12 @@ import os
 from typing import runtime_checkable, Protocol
 
 import numpy as np
+import pint
 import pymmcore
 import pymodbus.client
+
+from units import ureg
+
 
 
 def load(config, path=None):
@@ -63,7 +67,6 @@ def load(config, path=None):
     for name, params in config.items():
         if name in ports:
             continue
-        
         device = params["device"]
         if (device in ("ti_focus", "ti_filter1", "ti_filter2", "ti_lightpath", "ti_objective") and
             "ti_scope" not in core.getLoadedDevices()):
@@ -177,7 +180,7 @@ def load(config, path=None):
             core.loadDevice(name, "NikonTi2", "Nosepiece")
             core.setParentLabel(name, "ti2_scope")
             core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states")))
+            devices.append(Objective(name, core, params.get("zooms"), params.get("states")))
         elif device == "wago_valves":
             if client is None:
                 client = pymodbus.client.ModbusTcpClient(params["ip"])
@@ -238,6 +241,14 @@ class Control:
 
     def snap(self):
         return self._camera.snap()
+
+    @property
+    def px_len(self):
+        zoom_total = 1
+        for device in self.devices:
+            if isinstance(device, Zooms):
+                zoom_total *= device.zoom
+        return self._camera.px_len / zoom_total
 
     @property
     def exposure(self):
@@ -346,6 +357,10 @@ class Camera:
     def exposure(self, new_exposure):
         self._core.setExposure(self.name, new_exposure)
 
+    @property
+    def px_len(self):
+        return 6.5 * ureg.um / ureg.px
+
 
 class Focus:
     def __init__(self, name, core):
@@ -405,6 +420,10 @@ class Stateful(Protocol):
 class Waitable(Protocol):
     def wait() -> None: ...
 
+@runtime_checkable
+class Zooms(Protocol):
+    zoom: float
+
 class Selector:
     def __init__(self, name, core, states=None):
         self.name = name
@@ -436,6 +455,44 @@ class Selector:
             self._core.setState(self.name, new_state)
         else:
             self._core.setStateLabel(self.name, new_state)
+
+
+class Objective:
+    def __init__(self, name, core, zooms, states=None):
+        self.name = name
+        self.states = states
+        self._core = core
+
+        n_states = self._core.getNumberOfStates(name)
+        if states is None:
+            self.states = [i for i in range(n_states)]
+        else:
+            if len(self.states) < n_states:
+                raise ValueError(f"{name} requires {n_states} states (not {len(self.states)}) to be specified.")
+            for i, state in enumerate(self.states):
+                self._core.defineStateLabel(name, i, state)
+        self.zooms = {state: zoom for state, zoom in zip(self.states, zooms)}
+
+    def wait(self):
+        self._core.waitForDevice(self.name)
+
+    @property
+    def state(self):
+        if isinstance(self.states[0], int):
+            return self._core.getState(self.name)
+        else:
+            return self._core.getStateLabel(self.name)
+
+    @state.setter
+    def state(self, new_state):
+        if isinstance(new_state, int):
+            self._core.setState(self.name, new_state)
+        else:
+            self._core.setStateLabel(self.name, new_state)
+
+    @property
+    def zoom(self):
+        return self.zooms[self.state]
 
 
 class Shutter:
@@ -504,7 +561,7 @@ class Valves:
         self._client.write_coil(addr, (value == "off") or (value == 0))
 
 
-class Mux: 
+class Mux:
     def __init__(self, name, mapping, valves):
         self.name = name
         num_bits = (len(mapping) - 2) // 2
@@ -522,8 +579,6 @@ class Mux:
         zeros_state = np.array([1 - self._valves[v] for v in self._zeros])
         ones_state = np.array([1 - self._valves[v] for v in self._ones])
         all_state = np.array([1 - self._valves[v] for v in self._all])
-        print(zeros_state)
-        print(ones_state)
         if np.all(all_state):
             return "open"
         elif not np.any(all_state):
