@@ -17,6 +17,8 @@ def live(ctrl):
     viewer.add_image(ctrl.snap())
 
     def update_img(img):
+        if img is None:
+            return
         viewer.layers[0].data = img
 
     @thread_worker(connect={"yielded": update_img})
@@ -124,6 +126,7 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
         cache=False,
         axis_labels=["time", "y", "x"],
     )
+    viewer.dims.current_step = (0,) + viewer.dims.current_step[1:]
 
     def update_img(args):
         if args is None:
