@@ -81,7 +81,10 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
     if default is None:
         default = {}
     default = expand_config(default)
-    times = expand_config(times)
+    times = {
+        ureg(k).to("s").magnitude if isinstance(k, str) else k: v
+        for k, v in expand_config(times).items()
+    }
     channels = expand_config(channels)
 
     xp = xr.Dataset(
@@ -100,17 +103,28 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
                     chunks=(1, 1, 1, 1, tile.shape[0], tile.shape[1]),
                     dtype=tile.dtype,
                 ),
-            )
+            ),
         },
-        {"time": list(times.keys()), "channel": list(channels.keys())},
+        {
+            "time": list(times.keys()),
+            "channel": list(channels.keys()),
+        },
+        {
+            "default_state": default,
+            "time_states": times,
+            "channel_states": channels,
+            "overlap": overlap,
+        },
     )
 
     store = zr.DirectoryStore(file)
     compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
     xp.to_zarr(store, compute=False, encoding={"tile": {"compressor": compressor}})
-    tiles = zr.open(file + "/tile", fill_value=0, mode="a")
+
+    tiles = zr.open(file + "/tile", mode="a")
     tiles.fill_value = 0
     xp.tile.data = da.from_zarr(tiles)
+
     img = xp.tile[..., :].transpose("tile_row", "tile_col", "tile_y", "tile_x", "channel", "time")
     img = xr.concat(img, dim="tile_y")
     img = xr.concat(img, dim="tile_x")
@@ -141,11 +155,17 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
 
     @thread_worker(connect={"yielded": update_img})
     def acquire():
+        dts = xr.Dataset(
+            {
+                "datetime": (
+                    ("channel", "time", "tile_col", "tile_row"),
+                    np.zeros((len(channels), len(times), len(ys), len(xs)), dtype="datetime64[ns]"),
+                )
+            }
+        )
         start_time = time.time()
         set_config(ctrl, default)
         for j, (t, time_state) in enumerate(times.items()):
-            if isinstance(t, str):
-                t = ureg(t).to("s").magnitude
             delta_t = t - (time.time() - start_time)
             if delta_t >= 0:
                 time.sleep(delta_t)
@@ -167,7 +187,10 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
                         try:
                             ctrl.wait()
                             yield (ctrl.snap(), (i, j, k, l))
+                            dts.datetime[i, j, k, l] = np.datetime64(time.time_ns(), "ns")
+                            dts.to_zarr(store, mode="a")
                         except Exception as e:
+                            print(e)
                             yield
 
     acquire()
