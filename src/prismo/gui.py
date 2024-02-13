@@ -26,7 +26,6 @@ def live(ctrl):
                 ctrl.wait()
                 yield ctrl.snap()
             except Exception as e:
-                print(e)
                 yield
 
     worker = snap_img()
@@ -56,11 +55,9 @@ def merge_configs(config, default):
 
 def set_config(prop, config):
     for k, v in config.items():
-        print(k, v)
         if isinstance(v, dict):
             set_config(prop[k], v)
         else:
-            print("Setting", k, "to", v)
             prop.__setattr__(k, v)
 
 
@@ -105,7 +102,6 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
         },
         {"time": list(times.keys()), "channel": list(channels.keys())},
     )
-    print(xp.tile.shape)
 
     store = zr.DirectoryStore(file)
     compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
@@ -121,13 +117,24 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
     xp["image"] = img
 
     viewer = napari.view_image(
-        img, contrast_limits=[tile.min(), tile.max()], multiscale=False, cache=False
+        img,
+        channel_axis=0,
+        name=list(channels.keys()),
+        multiscale=False,
+        cache=False,
+        axis_labels=["time", "y", "x"],
     )
 
     def update_img(args):
-        img, idx = args
-        tiles[idx] = img
-        viewer.layers[0].refresh()
+        if args is None:
+            return
+
+        img, idxs = args
+        tiles[idxs] = img
+        layer = viewer.layers[idxs[0]]
+        if idxs[1] == 0 and idxs[2] == 0 and idxs[3] == 0:
+            layer.contrast_limits = (img.min(), img.max())
+        layer.refresh()
 
     @thread_worker(connect={"yielded": update_img})
     def acquire():
@@ -136,11 +143,10 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
         for j, (t, time_state) in enumerate(times.items()):
             if isinstance(t, str):
                 t = ureg(t).to("s").magnitude
-                print(t)
             delta_t = t - (time.time() - start_time)
             if delta_t >= 0:
-                print("Waiting", delta_t, "s")
                 time.sleep(delta_t)
+                yield
 
             time_state = merge_configs(time_state, default)
             ctrl.wait()
@@ -157,10 +163,8 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
                         set_config(ctrl, merge_configs(c, time_state))
                         try:
                             ctrl.wait()
-                            print(ctrl.wheel)
                             yield (ctrl.snap(), (i, j, k, l))
                         except Exception as e:
-                            print(e)
                             yield
 
     acquire()
