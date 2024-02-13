@@ -89,11 +89,11 @@ def load(config, path=None):
         elif device == "demo_filter":
             core.loadDevice(name, "DemoCamera", "DWheel")
             core.initializeDevice(name)
-            devices.append(Stage(name, core))
+            devices.append(Selector(name, core, states=params.get("states")))
         elif device == "demo_stage":
             core.loadDevice(name, "DemoCamera", "DXYStage")
             core.initializeDevice(name)
-            devices.append(Selector(name, core, states=params.get("states")))
+            devices.append(Stage(name, core))
         elif device == "lambda_filter1":
             core.loadDevice(name, "SutterLambda", "Wheel-A")
             core.setProperty(name, "Port", params["port"])
