@@ -1,7 +1,16 @@
 import time
 
+from magicgui import widgets
 from napari.qt.threading import thread_worker
-from qtpy.QtWidgets import QPushButton
+from qtpy.QtCore import Qt
+from qtpy.QtWidgets import (
+    QGridLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QWidget,
+)
+from qtpy.QtGui import QDoubleValidator
 import napari
 import dask.array as da
 import numcodecs
@@ -14,12 +23,13 @@ from units import ureg
 
 def live(ctrl):
     viewer = napari.Viewer()
-    viewer.add_image(ctrl.snap())
+    viewer.add_image(ctrl.snap(), name="live")
 
     def update_img(img):
         if img is None:
             return
-        viewer.layers[0].data = img
+        if "live" in viewer.layers:
+            viewer.layers[0].data = img
 
     @thread_worker(connect={"yielded": update_img})
     def snap_img():
@@ -63,7 +73,126 @@ def set_config(prop, config):
             prop.__setattr__(k, v)
 
 
-def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None, default=None):
+def control_widget(ctrl):
+    x = widgets.LineEdit(value=ctrl.x, label="x")
+    y = widgets.LineEdit(value=ctrl.y, label="y")
+
+    @x.changed.connect
+    def on_change_x(value):
+        ctrl.x = value
+
+    @y.changed.connect
+    def on_change_y(value):
+        ctrl.y = value
+
+    @thread_worker(connect={})
+    def poll_ctrl():
+        while True:
+            x.value = ctrl.x
+            y.value = ctrl.y
+            time.sleep(0.1)
+            yield
+
+    worker = poll_ctrl()
+    return widgets.Container(widgets=[x, y])
+
+
+def acquire(ctrl, file, overlap, times=None, channels=None, default=None):
+    viewer, worker = live(ctrl)
+
+    def on_tile(top_left, bot_right):
+        nonlocal viewer, worker
+        worker.quit()
+        viewer.layers.remove("live")
+        # TODO: We need to find a way to return the xarray dataset and the worker to the caller
+        # of the parent function. We can probably just make the dataset here and modify it in place
+        # in the worker.
+        xp, viewer = tile_acq(
+            ctrl,
+            file,
+            top_left,
+            bot_right,
+            overlap,
+            times=times,
+            channels=channels,
+            default=default,
+            viewer=viewer,
+        )
+
+    viewer.window.add_dock_widget(tile_widget(ctrl, viewer, on_tile), name="Acquisition Boundaries")
+
+
+def tile_widget(ctrl, viewer, callback):
+    left_x = QLineEdit()
+    left_x.setValidator(QDoubleValidator())
+    left_y = QLineEdit()
+    left_y.setValidator(QDoubleValidator())
+    left_btn = QPushButton("Set")
+    left_btn.setMinimumWidth(50)
+
+    right_x = QLineEdit()
+    right_x.setValidator(QDoubleValidator())
+    right_y = QLineEdit()
+    right_y.setValidator(QDoubleValidator())
+    right_btn = QPushButton("Set")
+    right_btn.setMinimumWidth(50)
+
+    continue_btn = QPushButton("Continue")
+
+    widget = QWidget()
+    widget.setMaximumHeight(150)
+    layout = QGridLayout(widget)
+
+    layout.addWidget(QLabel("x"), 0, 1, alignment=Qt.AlignHCenter)
+    layout.addWidget(QLabel("y"), 0, 2, alignment=Qt.AlignHCenter)
+    layout.addWidget(QLabel("Top Left"), 1, 0)
+    layout.addWidget(left_x, 1, 1)
+    layout.addWidget(left_y, 1, 2)
+    layout.addWidget(left_btn, 1, 3)
+
+    layout.addWidget(QLabel("Bottom Right"), 2, 0)
+    layout.addWidget(right_x, 2, 1)
+    layout.addWidget(right_y, 2, 2)
+    layout.addWidget(right_btn, 2, 3)
+
+    layout.addWidget(continue_btn, 3, 0)
+
+    layout.setColumnMinimumWidth(3, 60)
+    layout.setHorizontalSpacing(10)
+
+    def on_set_left():
+        left_x.setText(str(ctrl.x))
+        left_y.setText(str(ctrl.y))
+
+    def on_set_right():
+        right_x.setText(str(ctrl.x))
+        right_y.setText(str(ctrl.y))
+
+    def on_continue():
+        if left_x.text() and left_y.text() and right_x.text() and right_y.text():
+            widget.close()
+            viewer.window.remove_dock_widget(widget)
+            callback(
+                (float(left_x.text()), float(left_y.text())),
+                (float(right_x.text()), float(right_y.text())),
+            )
+        else:
+            for w in [left_x, left_y, right_x, right_y]:
+                if not w.text():
+                    w.setStyleSheet("border: 1px solid red;")
+                else:
+                    w.setStyleSheet("border: 0px;")
+
+    left_btn.clicked.connect(on_set_left)
+    right_btn.clicked.connect(on_set_right)
+    continue_btn.clicked.connect(on_continue)
+
+    return widget
+
+
+def tile_acq(
+    ctrl, file, top_left, bot_right, overlap, times=None, channels=None, default=None, viewer=None
+):
     tile = ctrl.snap()
     width = tile.shape[1]
     height = tile.shape[0]
@@ -132,14 +261,16 @@ def tile_acq(ctrl, file, top_left, bot_right, overlap, times=None, channels=None
     img = img.transpose("channel", "time", "im_y", "im_x")
     xp["image"] = img
 
-    viewer = napari.view_image(
+    if viewer is None:
+        viewer = napari.Viewer()
+    viewer.add_image(
         img,
         channel_axis=0,
         name=list(channels.keys()),
         multiscale=False,
         cache=False,
-        axis_labels=["time", "y", "x"],
     )
+    viewer.dims.axis_labels = ["time", "y", "x"]
     viewer.dims.current_step = (0,) + viewer.dims.current_step[1:]
 
     def update_img(args):
