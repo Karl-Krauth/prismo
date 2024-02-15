@@ -196,15 +196,15 @@ def tile_acq(
     tile = ctrl.snap()
     width = tile.shape[1]
     height = tile.shape[0]
-    overlap_x = np.round(overlap * width)
-    overlap_y = np.round(overlap * height)
-    delta_x = (width - overlap_x) * ureg.px * ctrl.px_len
-    delta_y = (height - overlap_y) * ureg.px * ctrl.px_len
-    xs = np.arange(top_left[0], bot_right[0], delta_x.to("um").magnitude)
-    ys = np.arange(top_left[1], bot_right[1], delta_y.to("um").magnitude)
+    overlap_x = int(round(overlap * width))
+    overlap_y = int(round(overlap * height))
+    delta_x = ((width - overlap_x) * ureg.px * ctrl.px_len).to("um").magnitude
+    delta_y = ((height - overlap_y) * ureg.px * ctrl.px_len).to("um").magnitude
+    xs = np.arange(top_left[0], bot_right[0] + delta_x - 1, delta_x)
+    ys = np.arange(top_left[1], bot_right[1] + delta_y - 1, delta_y)
 
     if times is None:
-        times = {"default": {}}
+        times = {"0s": {}}
     if channels is None:
         channels = {"default": {}}
     if default is None:
@@ -250,11 +250,11 @@ def tile_acq(
     compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
     xp.to_zarr(store, compute=False, encoding={"tile": {"compressor": compressor}})
 
-    tiles = zr.open(file + "/tile", mode="a")
+    tiles = zr.open(file + "/tile", mode="a", synchronizer=zr.ThreadSynchronizer())
     tiles.fill_value = 0
     xp.tile.data = da.from_zarr(tiles)
 
-    img = xp.tile[..., :].transpose("tile_row", "tile_col", "tile_y", "tile_x", "channel", "time")
+    img = xp.tile[..., : -overlap_y, : -overlap_x].transpose("tile_row", "tile_col", "tile_y", "tile_x", "channel", "time")
     img = xr.concat(img, dim="tile_y")
     img = xr.concat(img, dim="tile_x")
     img = img.rename(tile_y="im_y", tile_x="im_x")
@@ -310,19 +310,22 @@ def tile_acq(
                 if k % 2 == 1:
                     iter = reversed(iter)
                 for l, x in iter:
+                    ctrl.wait()
+                    ctrl.xy = (x, y)
+                    time.sleep(2)
                     for i, c in enumerate(channels.values()):
-                        ctrl.wait()
-                        ctrl.xy = (x, y)
                         ctrl.wait()
                         set_config(ctrl, merge_configs(c, time_state))
                         try:
                             ctrl.wait()
                             yield (ctrl.snap(), (i, j, k, l))
+                            time.sleep(0.2)
                             dts.datetime[i, j, k, l] = np.datetime64(time.time_ns(), "ns")
-                            dts.to_zarr(store, mode="a")
+                            # dts.to_zarr(store, mode="a")
                         except Exception as e:
                             print(e)
                             yield
+        set_config(ctrl, default)
 
     acquire()
     return xp, viewer
