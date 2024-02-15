@@ -34,11 +34,8 @@ def live(ctrl):
     @thread_worker(connect={"yielded": update_img})
     def snap_img():
         while True:
-            try:
-                ctrl.wait()
-                yield ctrl.snap()
-            except Exception as e:
-                yield
+            ctrl.wait()
+            yield ctrl.snap()
 
     worker = snap_img()
     return viewer, worker
@@ -316,15 +313,11 @@ def tile_acq(
                     for i, c in enumerate(channels.values()):
                         ctrl.wait()
                         set_config(ctrl, merge_configs(c, time_state))
-                        try:
-                            ctrl.wait()
-                            yield (ctrl.snap(), (i, j, k, l))
-                            time.sleep(0.2)
-                            dts.datetime[i, j, k, l] = np.datetime64(time.time_ns(), "ns")
-                            # dts.to_zarr(store, mode="a")
-                        except Exception as e:
-                            print(e)
-                            yield
+                        ctrl.wait()
+                        yield (ctrl.snap(), (i, j, k, l))
+                        time.sleep(0.2)
+                        dts.datetime[i, j, k, l] = np.datetime64(time.time_ns(), "ns")
+                        # dts.to_zarr(store, mode="a")
         set_config(ctrl, default)
 
     acquire()
