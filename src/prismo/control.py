@@ -155,7 +155,7 @@ def load(config, path=None):
             core.loadDevice(name, "NikonTI", "TINosePiece")
             core.setParentLabel(name, "ti_scope")
             core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states")))
+            devices.append(Objective(name, core, params.get("zooms"), params.get("states")))
         elif device == "ti2_filter1":
             core.loadDevice(name, "NikonTi2", "FilterTurret1")
             core.setParentLabel(name, "ti2_scope")
@@ -195,7 +195,7 @@ def load(config, path=None):
             raise ValueError(f"Device {device} is not recognized.")
 
         for k, v in params.items():
-            if k not in ["port", "device", "states", "valves", "ip"]:
+            if k not in ["port", "device", "states", "valves", "ip", "zooms"]:
                 core.setProperty(name, k, v)
 
     return Control(core, devices=devices)
@@ -238,6 +238,14 @@ class Control:
     @camera.setter
     def camera(self, new_camera):
         self._camera = self.devices[new_camera]
+
+    @property
+    def binning(self):
+        return self._camera.binning
+
+    @binning.setter
+    def binning(self, new_binning):
+        self._camera.binning = new_binning
 
     def snap(self):
         return self._camera.snap()
@@ -350,6 +358,14 @@ class Camera:
         self._core.waitForDevice(self.name)
 
     @property
+    def binning(self):
+        return int(self._core.getProperty(self.name, "Binning")[-1])
+
+    @binning.setter
+    def binning(self, new_binning):
+        self._core.setProperty(self.name, "Binning", f"{new_binning}x{new_binning}")
+
+    @property
     def exposure(self):
         return self._core.getExposure(self.name)
 
@@ -359,7 +375,7 @@ class Camera:
 
     @property
     def px_len(self):
-        return 6.5 * ureg.um / ureg.px
+        return self.binning * 6.5 * ureg.um / ureg.px
 
 
 class Focus:
