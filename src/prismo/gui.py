@@ -34,8 +34,14 @@ def live(ctrl):
     @thread_worker(connect={"yielded": update_img})
     def snap_img():
         while True:
-            ctrl.wait()
-            yield ctrl.snap()
+            for i in range(10):
+                try:
+                    ctrl.wait()
+                    yield ctrl.snap()
+                    break
+                except Exception as e:
+                    if i == 9:
+                        raise e
 
     worker = snap_img()
     return viewer, worker
@@ -62,11 +68,12 @@ def merge_configs(config, default):
     return new_config
 
 
-def set_config(prop, config):
+def set_config(prop, config, c):
     for k, v in config.items():
         if isinstance(v, dict):
-            set_config(prop[k], v)
+            set_config(prop[k], v, c)
         else:
+            c.wait()
             prop.__setattr__(k, v)
 
 
@@ -94,16 +101,31 @@ def control_widget(ctrl):
     return widgets.Container(widgets=[x, y])
 
 
-def acquire(ctrl, file, overlap, times=None, channels=None, default=None):
-    viewer, worker = live(ctrl)
+def acquire(ctrl, file, overlap, times=None, channels=None, default=None, top_left=None, bot_right=None):
+    if top_left is None or bot_right is None:
+        viewer, worker = live(ctrl)
 
-    def on_tile(top_left, bot_right):
-        nonlocal viewer, worker
-        worker.quit()
-        viewer.layers.remove("live")
-        # TODO: We need to find a way to return the xarray dataset and the worker to the caller
-        # of the parent function. We can probably just make the dataset here and modify it in place
-        # in the worker.
+        def on_tile(top_left, bot_right):
+            nonlocal viewer, worker
+            worker.quit()
+            viewer.layers.remove("live")
+            # TODO: We need to find a way to return the xarray dataset and the worker to the caller
+            # of the parent function. We can probably just make the dataset here and modify it in place
+            # in the worker.
+            xp, viewer = tile_acq(
+                ctrl,
+                file,
+                top_left,
+                bot_right,
+                overlap,
+                times=times,
+                channels=channels,
+                default=default,
+                viewer=viewer,
+            )
+
+        viewer.window.add_dock_widget(tile_widget(ctrl, viewer, on_tile), name="Acquisition Boundaries")
+    else:
         xp, viewer = tile_acq(
             ctrl,
             file,
@@ -113,10 +135,7 @@ def acquire(ctrl, file, overlap, times=None, channels=None, default=None):
             times=times,
             channels=channels,
             default=default,
-            viewer=viewer,
         )
-
-    viewer.window.add_dock_widget(tile_widget(ctrl, viewer, on_tile), name="Acquisition Boundaries")
 
 
 def tile_widget(ctrl, viewer, callback):
@@ -292,7 +311,7 @@ def tile_acq(
             }
         )
         start_time = time.time()
-        set_config(ctrl, default)
+        set_config(ctrl, default, ctrl)
         for j, (t, time_state) in enumerate(times.items()):
             delta_t = t - (time.time() - start_time)
             if delta_t >= 0:
@@ -301,7 +320,7 @@ def tile_acq(
 
             time_state = merge_configs(time_state, default)
             ctrl.wait()
-            set_config(ctrl, time_state)
+            set_config(ctrl, time_state, ctrl)
             for k, y in enumerate(ys):
                 iter = list(enumerate(xs))
                 if k % 2 == 1:
@@ -312,13 +331,19 @@ def tile_acq(
                     time.sleep(2)
                     for i, c in enumerate(channels.values()):
                         ctrl.wait()
-                        set_config(ctrl, merge_configs(c, time_state))
-                        ctrl.wait()
-                        yield (ctrl.snap(), (i, j, k, l))
-                        time.sleep(0.2)
+                        set_config(ctrl, merge_configs(c, time_state), ctrl)
+                        for tries in range(10):
+                            try:
+                                time.sleep(0.2)
+                                ctrl.wait()
+                                yield (ctrl.snap(), (i, j, k, l))
+                                break
+                            except Exception as e:
+                                if tries == 9:
+                                    raise e
                         dts.datetime[i, j, k, l] = np.datetime64(time.time_ns(), "ns")
                         # dts.to_zarr(store, mode="a")
-        set_config(ctrl, default)
+        set_config(ctrl, default, ctrl)
 
     acquire()
     return xp, viewer
