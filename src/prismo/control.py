@@ -72,7 +72,7 @@ def load(config, path=None):
             "ti_scope" not in core.getLoadedDevices()):
             core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
-        elif (device in ("ti2_focus", "ti2_filter1", "ti2_filter2", "ti2_lightpath", "ti2_objective") and
+        elif (device in ("ti2_focus", "ti2_filter1", "ti2_filter2", "ti2_shutter1", "ti2_shutter2", "ti2_lightpath", "ti2_objective") and
             "ti2_scope" not in core.getLoadedDevices()):
             core.loadDevice("ti2_scope", "NikonTi2", "Ti2-E__0")
             core.initializeDevice("ti2_scope")
@@ -166,6 +166,16 @@ def load(config, path=None):
             core.setParentLabel(name, "ti2_scope")
             core.initializeDevice(name)
             devices.append(Selector(name, core, params.get("states")))
+        elif device == "ti2_shutter1":
+            core.loadDevice(name, "NikonTi2", "Turret1Shutter")
+            core.setParentLabel(name, "ti2_scope")
+            core.initializeDevice(name)
+            devices.append(Shutter(name, core))
+        elif device == "ti2_shutter2":
+            core.loadDevice(name, "NikonTi2", "Turret2Shutter")
+            core.setParentLabel(name, "ti2_scope")
+            core.initializeDevice(name)
+            devices.append(Shutter(name, core))
         elif device == "ti2_lightpath":
             core.loadDevice(name, "NikonTi2", "LightPath")
             core.setParentLabel(name, "ti_scope")
@@ -664,6 +674,7 @@ class MiniChip:
         else:
             for v in self._all_io:
                 self._valves[v] = 1
+
             for i, b in enumerate(bin(new_state)[2:].zfill(len(self._ones))):
                 if b == "0":
                     self._valves[self._zeros[i]] = 0
