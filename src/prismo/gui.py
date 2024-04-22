@@ -71,7 +71,7 @@ def merge_configs(config, default):
 def set_config(prop, config, c):
     for k, v in config.items():
         if isinstance(v, dict):
-            set_config(prop[k], v, c)
+            set_config(prop.__getattr__(k), v, c)
         else:
             c.wait()
             prop.__setattr__(k, v)
@@ -216,8 +216,12 @@ def tile_acq(
     overlap_y = int(round(overlap * height))
     delta_x = ((width - overlap_x) * ureg.px * ctrl.px_len).to("um").magnitude
     delta_y = ((height - overlap_y) * ureg.px * ctrl.px_len).to("um").magnitude
-    xs = np.arange(top_left[0], bot_right[0] + delta_x - 1, delta_x)
-    ys = np.arange(top_left[1], bot_right[1] + delta_y - 1, delta_y)
+    if top_left == bot_right:
+        xs = np.array([top_left[0]])
+        ys = np.array([top_left[1]])
+    else:
+        xs = np.arange(top_left[0], bot_right[0] + delta_x - 1, delta_x)
+        ys = np.arange(top_left[1], bot_right[1] + delta_y - 1, delta_y)
 
     if times is None:
         times = {"0s": {}}
@@ -226,10 +230,15 @@ def tile_acq(
     if default is None:
         default = {}
     default = expand_config(default)
-    times = {
-        ureg(k).to("s").magnitude if isinstance(k, str) else k: v
-        for k, v in expand_config(times).items()
-    }
+    #  times = {
+    #      ureg(k).to("s").magnitude if isinstance(k, str) else k: v
+    #     for k, v in expand_config(times).items()
+    # }
+    acq_times = {}
+    for k, v in times.items():
+        times[k]["wait"] = ureg(times[k]["wait"]).to("s").magnitude
+        if "acq" in v:
+            acq_times[k] = v
     channels = expand_config(channels)
 
     xp = xr.Dataset(
@@ -239,7 +248,7 @@ def tile_acq(
                 da.zeros(
                     shape=(
                         len(channels),
-                        len(times),
+                        len(acq_times),
                         len(ys),
                         len(xs),
                         tile.shape[0],
@@ -251,7 +260,7 @@ def tile_acq(
             ),
         },
         {
-            "time": list(times.keys()),
+            "time": list(acq_times.keys()),
             "channel": list(channels.keys()),
         },
         {
@@ -270,7 +279,11 @@ def tile_acq(
     tiles.fill_value = 0
     xp.tile.data = da.from_zarr(tiles)
 
-    img = xp.tile[..., : -overlap_y, : -overlap_x].transpose("tile_row", "tile_col", "tile_y", "tile_x", "channel", "time")
+    if overlap_y != 0 and overlap_x != 0:
+        img = xp.tile[..., : -overlap_y, : -overlap_x]
+    else:
+        img = xp.tile
+    img = img.transpose("tile_row", "tile_col", "tile_y", "tile_x", "channel", "time")
     img = xr.concat(img, dim="tile_y")
     img = xr.concat(img, dim="tile_x")
     img = img.rename(tile_y="im_y", tile_x="im_x")
@@ -306,21 +319,29 @@ def tile_acq(
             {
                 "datetime": (
                     ("channel", "time", "tile_col", "tile_row"),
-                    np.zeros((len(channels), len(times), len(ys), len(xs)), dtype="datetime64[ns]"),
+                    np.zeros((len(channels), len(acq_times), len(ys), len(xs)), dtype="datetime64[ns]"),
                 )
             }
         )
         start_time = time.time()
         set_config(ctrl, default, ctrl)
+        j_true = -1
         for j, (t, time_state) in enumerate(times.items()):
-            delta_t = t - (time.time() - start_time)
-            if delta_t >= 0:
-                time.sleep(delta_t)
-                yield
-
+            # delta_t = t # t - (time.time() - start_time)
+            delta_t = time_state["wait"]
+            del time_state["wait"]
+            do_acq = "acq" in time_state
+            if do_acq:
+                del time_state["acq"]
             time_state = merge_configs(time_state, default)
             ctrl.wait()
             set_config(ctrl, time_state, ctrl)
+            if delta_t >= 0:
+                time.sleep(delta_t)
+                yield
+            if not do_acq:
+                continue
+            j_true += 1
             for k, y in enumerate(ys):
                 iter = list(enumerate(xs))
                 if k % 2 == 1:
@@ -328,7 +349,7 @@ def tile_acq(
                 for l, x in iter:
                     ctrl.wait()
                     ctrl.xy = (x, y)
-                    time.sleep(2)
+                    time.sleep(1)
                     for i, c in enumerate(channels.values()):
                         ctrl.wait()
                         set_config(ctrl, merge_configs(c, time_state), ctrl)
@@ -336,12 +357,13 @@ def tile_acq(
                             try:
                                 time.sleep(0.2)
                                 ctrl.wait()
-                                yield (ctrl.snap(), (i, j, k, l))
+                                yield (ctrl.snap(), (i, j_true, k, l))
                                 break
                             except Exception as e:
                                 if tries == 9:
                                     raise e
-                        dts.datetime[i, j, k, l] = np.datetime64(time.time_ns(), "ns")
+                        # dts.datetime[i, j, k, l] = np.datetime64(time.time_ns(), "ns")
+                        set_config(ctrl, default, ctrl)
                         # dts.to_zarr(store, mode="a")
         set_config(ctrl, default, ctrl)
 
