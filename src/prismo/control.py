@@ -44,7 +44,7 @@ def load(config, path=None):
     }
     for name, params in config.items():
         device = params.get("device")
-        if device is None or device not in ("asi_stage", "lambda_filter1", "lambda_filter2", "lambda_shutter1", "lambda_shutter2", "sola_light"):
+        if device is None or device not in ("asi_stage", "asi_zstage", "lambda_filter1", "lambda_filter2", "lambda_shutter1", "lambda_shutter2", "sola_light", "spectra_light"):
             continue
         if "port" not in params:
             raise ValueError(f"{name} requires a port to be specified.")
@@ -52,9 +52,11 @@ def load(config, path=None):
         port = params["port"]
         if device == "asi_stage":
             ports[port] = {**port_defaults, "AnswerTimeout": 2000.0}
+        elif device == "asi_zstage":
+            ports[port] = {**port_defaults, "AnswerTimeout": 2000.0}
         elif device in ("lambda_filter1", "lambda_filter2", "lambda_shutter1", "lambda_shutter2"):
             ports[port] = {**port_defaults, "AnswerTimeout": 2000.0, "BaudRate": 128000}
-        elif device == "sola_light":
+        elif device == "sola_light" or device == "spectra_light":
             ports[port] = dict(port_defaults)
 
     for port, params in ports.items():
@@ -82,6 +84,12 @@ def load(config, path=None):
             core.setProperty(name, "Port", params["port"])
             core.initializeDevice(name)
             devices.append(Stage(name, core))
+        elif device == "asi_zstage":
+            core.loadDevice(name, "ASIStage", "ZStage")
+            core.setProperty(name, "Port", params["port"])
+            core.setProperty(name, "Axis", "Z")
+            core.initializeDevice(name)
+            devices.append(Focus(name, core))
         elif device == "demo_camera":
             core.loadDevice(name, "DemoCamera", "DCam")
             core.initializeDevice(name)
@@ -128,6 +136,12 @@ def load(config, path=None):
         elif device == "sola_light":
             core.loadDevice(name, "LumencorSpectra", "Spectra")
             core.setProperty(name, "SetLE_Type", "Sola")
+            core.setProperty(name, "Port", params["port"])
+            core.initializeDevice(name)
+            devices.append(SolaLight(name, core))
+        elif device == "spectra_light":
+            core.loadDevice(name, "LumencorSpectra", "Spectra")
+            core.setProperty(name, "SetLE_Type", "Spectra")
             core.setProperty(name, "Port", params["port"])
             core.initializeDevice(name)
             devices.append(SolaLight(name, core))
@@ -628,7 +642,7 @@ class Mux:
             for v in self._all:
                 self._valves[v] = 1
             self._valves[self._waste] = 0
-        else:
+        elif isinstance(new_state, int):
             for v in self._all:
                 self._valves[v] = 1
             for i, b in enumerate(bin(new_state)[2:].zfill(len(self._ones))):
@@ -637,6 +651,16 @@ class Mux:
                 else:
                     self._valves[self._ones[i]] = 0
             self._valves[self._io] = 0
+        elif "waste" in new_state:
+            new_state = int(new_state.split("_")[0])
+            for v in self._all:
+                self._valves[v] = 1
+            for i, b in enumerate(bin(new_state)[2:].zfill(len(self._ones))):
+                if b == "0":
+                    self._valves[self._zeros[i]] = 0
+                else:
+                    self._valves[self._ones[i]] = 0
+            self._valves[self._waste] = 0
 
 class MiniChip:
     def __init__(self, name, mapping, valves):
