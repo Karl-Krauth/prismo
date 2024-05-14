@@ -1,7 +1,9 @@
+import multiprocess
 import time
 
 from magicgui import widgets
-from napari.qt.threading import thread_worker
+from napari.qt.threading import thread_worker, create_worker
+from qtpy import QtCore
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QGridLayout,
@@ -15,37 +17,97 @@ import napari
 import dask.array as da
 import numcodecs
 import numpy as np
+import threading
 import xarray as xr
 import zarr as zr
 
 from units import ureg
 
 
+class GUI:
+    def __init__(self, worker_func, gui_func, update_func):
+        def run_gui(pipe):
+            viewer = napari.Viewer()
+            def update(args):
+                if isinstance(args, tuple):
+                    update_func(viewer, *args)
+                elif args is not None:
+                    update_func(viewer, args)
+
+            @thread_worker
+            def receive():
+                while True:
+                    if pipe.poll(1):
+                        yield pipe.recv()
+                    else:
+                        yield
+
+            receiver = receive()
+            receiver.yielded.connect(update)
+            receiver.start()
+            gui_func(viewer)
+            napari.run()
+            receiver.quit()
+            pipe.close()
+
+        def run_worker(pipe, running, quit):
+            for x in worker_func():
+                running.wait()
+                if quit.is_set():
+                    break
+                try:
+                    pipe.send(x)
+                except (BrokenPipeError, IOError):
+                    break
+
+        self._running = threading.Event()
+        self._running.set()
+        self._quit = threading.Event()
+        ctx = multiprocess.get_context("spawn")
+        self._pipe, child_pipe = ctx.Pipe()
+        self._gui_process = ctx.Process(target=run_gui, args=(child_pipe,))
+        self._worker_thread = threading.Thread(target=run_worker, args=(self._pipe, self._running, self._quit))
+        print("c")
+
+    def start(self):
+        self._gui_process.start()
+        self._worker_thread.start()
+
+    def resume(self):
+        self._running.set()
+
+    def pause(self):
+        self._running.clear()
+
+    def quit(self):
+        self._running.set()
+        self._quit.set()
+        if self._gui_process.is_alive():
+            self._gui_process.terminate()
+        self._pipe.close()
+
+    def __del__(self):
+        self.quit()
+
 def live(ctrl):
-    viewer = napari.Viewer()
-    viewer.add_image(ctrl.snap(), name="live")
-
-    def update_img(img):
-        if img is None:
-            return
-        if "live" in viewer.layers:
-            viewer.layers[0].data = img
-
-    @thread_worker(connect={"yielded": update_img})
     def snap_img():
         while True:
-            for i in range(10):
-                try:
-                    ctrl.wait()
-                    yield ctrl.snap()
-                    break
-                except Exception as e:
-                    if i == 9:
-                        raise e
+            ctrl.wait()
+            yield ctrl.snap()
 
-    worker = snap_img()
-    return viewer, worker
+    def init_gui(viewer):
+        pass
 
+    def update_img(viewer, img):
+        if "live" in viewer.layers:
+            viewer.layers[0].data = img
+        else:
+            viewer.add_image(img, name="live")
+
+    gui = GUI(snap_img, init_gui, update_img)
+    gui.start()
+
+    return gui
 
 def expand_config(config):
     new_config = {}
@@ -101,8 +163,8 @@ def control_widget(ctrl):
     return widgets.Container(widgets=[x, y])
 
 
-def acquire(ctrl, file, overlap, times=None, channels=None, default=None, top_left=None, bot_right=None):
-    if top_left is None or bot_right is None:
+def acquire(ctrl, file, overlap=None, times=None, channels=None, default=None, top_left=None, bot_right=None):
+    if (top_left is None or bot_right is None) and overlap is not None:
         viewer, worker = live(ctrl)
 
         def on_tile(top_left, bot_right):
@@ -207,19 +269,19 @@ def tile_widget(ctrl, viewer, callback):
 
 
 def tile_acq(
-    ctrl, file, top_left, bot_right, overlap, times=None, channels=None, default=None, viewer=None
+    ctrl, file, top_left, bot_right, overlap=None, times=None, channels=None, default=None, viewer=None
 ):
     tile = ctrl.snap()
-    width = tile.shape[1]
-    height = tile.shape[0]
-    overlap_x = int(round(overlap * width))
-    overlap_y = int(round(overlap * height))
-    delta_x = ((width - overlap_x) * ureg.px * ctrl.px_len).to("um").magnitude
-    delta_y = ((height - overlap_y) * ureg.px * ctrl.px_len).to("um").magnitude
-    if top_left == bot_right:
-        xs = np.array([top_left[0]])
-        ys = np.array([top_left[1]])
+    if overlap is None:
+        xs = np.array([ctrl.x])
+        ys = np.array([ctrl.y])
     else:
+        width = tile.shape[1]
+        height = tile.shape[0]
+        overlap_x = int(round(overlap * width))
+        overlap_y = int(round(overlap * height))
+        delta_x = ((width - overlap_x) * ureg.px * ctrl.px_len).to("um").magnitude
+        delta_y = ((height - overlap_y) * ureg.px * ctrl.px_len).to("um").magnitude
         xs = np.arange(top_left[0], bot_right[0] + delta_x - 1, delta_x)
         ys = np.arange(top_left[1], bot_right[1] + delta_y - 1, delta_y)
 
@@ -279,7 +341,7 @@ def tile_acq(
     tiles.fill_value = 0
     xp.tile.data = da.from_zarr(tiles)
 
-    if overlap_y != 0 and overlap_x != 0:
+    if overlap is not None and overlap != 0:
         img = xp.tile[..., : -overlap_y, : -overlap_x]
     else:
         img = xp.tile
@@ -312,6 +374,10 @@ def tile_acq(
         if idxs[1] == 0 and idxs[2] == 0 and idxs[3] == 0:
             layer.contrast_limits = (img.min(), img.max())
         layer.refresh()
+
+    def acq(channel=None, time=None, y=None, x=None):
+        if isinstance(channel, str):
+            channel = list(channels.keys()).index(channel)
 
     @thread_worker(connect={"yielded": update_img})
     def acquire():
