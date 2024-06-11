@@ -4,7 +4,7 @@ import time
 from magicgui import widgets
 from napari.qt.threading import thread_worker, create_worker
 from qtpy import QtCore
-from qtpy.QtCore import Qt
+from qtpy.QtCore import Qt, QTimer
 from qtpy.QtWidgets import (
     QGridLayout,
     QLabel,
@@ -24,41 +24,46 @@ import zarr as zr
 from units import ureg
 
 
+class Relay:
+    def __init__(self, pipe):
+        self._pipe = pipe
+        self._timers = []
+
+    def poll(self, func, timeout, route, *args, **kwargs):
+        def do_poll():
+            self._pipe.send([route, args, kwargs])
+            func(self._pipe.recv())
+
+        timer = QTimer()
+        timer.timeout.connect(do_poll)
+        timer.start(timeout)
+        self._timers.append(timer)
+
+    def get(self, route, *args, **kwargs):
+        self._pipe.send([route, args, kwargs])
+        return self._pipe.recv()
+
+    def post(self, route, *args, **kwargs):
+        self._pipe.send([route, args, kwargs])
+
+
 class GUI:
-    def __init__(self, worker_func, gui_func, update_func):
+    def __init__(self, gui_func):
         def run_gui(pipe):
             viewer = napari.Viewer()
-            def update(args):
-                if isinstance(args, tuple):
-                    update_func(viewer, *args)
-                elif args is not None:
-                    update_func(viewer, args)
-
-            @thread_worker
-            def receive():
-                while True:
-                    if pipe.poll(1):
-                        yield pipe.recv()
-                    else:
-                        yield
-
-            receiver = receive()
-            receiver.yielded.connect(update)
-            receiver.start()
-            gui_func(viewer)
+            relay = Relay(pipe)
+            gui_func(viewer, relay)
             napari.run()
-            receiver.quit()
             pipe.close()
 
-        def run_worker(pipe, running, quit):
-            for x in worker_func():
+        def run_router(pipe, running, quit):
+            while not quit.is_set():
                 running.wait()
-                if quit.is_set():
-                    break
                 try:
-                    pipe.send(x)
+                    route, args, kwargs = pipe.recv()
+                    pipe.send(self._routes[route](*args, **kwargs))
                 except (BrokenPipeError, IOError):
-                    break
+                    self.quit()
 
         self._running = threading.Event()
         self._running.set()
@@ -66,12 +71,17 @@ class GUI:
         ctx = multiprocess.get_context("spawn")
         self._pipe, child_pipe = ctx.Pipe()
         self._gui_process = ctx.Process(target=run_gui, args=(child_pipe,))
-        self._worker_thread = threading.Thread(target=run_worker, args=(self._pipe, self._running, self._quit))
-        print("c")
+        self._workers = []
+        self._router = threading.Thread(
+            target=run_router, args=(self._pipe, self._running, self._quit)
+        )
+        self._routes = {}
 
     def start(self):
         self._gui_process.start()
-        self._worker_thread.start()
+        for worker in self._workers:
+            worker.start()
+        self._router.start()
 
     def resume(self):
         self._running.set()
@@ -86,28 +96,58 @@ class GUI:
             self._gui_process.terminate()
         self._pipe.close()
 
+    def worker(self, func):
+        def run_worker():
+            for x in func():
+                self._running.wait()
+                if self._quit.is_set():
+                    break
+
+        self._workers.append(threading.Thread(target=run_worker))
+
+        return func
+
+    def route(self, route):
+        def decorator(func):
+            self._routes[route] = func
+            return func
+
+        return decorator
+
     def __del__(self):
         self.quit()
 
+
+class LiveClient:
+    def __init__(self, viewer, relay):
+        self._viewer = viewer
+        self._relay = relay
+        img = self._relay.get("img")
+        self._viewer.add_image(img, name="live")
+        self._relay.poll(self.update_img, 1000 // 60, "img")
+
+    def update_img(self, img):
+        self._viewer.layers[0].data = img
+
+
 def live(ctrl):
-    def snap_img():
+    gui = GUI(LiveClient)
+
+    img = ctrl.snap()
+
+    @gui.worker
+    def snap():
         while True:
-            ctrl.wait()
-            yield ctrl.snap()
+            img[:] = ctrl.snap()
 
-    def init_gui(viewer):
-        pass
+    @gui.route("img")
+    def get_img():
+        return img
 
-    def update_img(viewer, img):
-        if "live" in viewer.layers:
-            viewer.layers[0].data = img
-        else:
-            viewer.add_image(img, name="live")
-
-    gui = GUI(snap_img, init_gui, update_img)
     gui.start()
 
     return gui
+
 
 def expand_config(config):
     new_config = {}
@@ -163,7 +203,12 @@ def control_widget(ctrl):
     return widgets.Container(widgets=[x, y])
 
 
-def acquire(ctrl, file, overlap=None, times=None, channels=None, default=None, top_left=None, bot_right=None):
+def acquire(
+    ctrl, file, overlap=None, times=None, channels=None, default=None, top_left=None, bot_right=None
+):
+    def init_gui(viewer):
+        viewer.window.add_dock_widget(tile_widget(), name="Acquisition Boundaries")
+
     if (top_left is None or bot_right is None) and overlap is not None:
         viewer, worker = live(ctrl)
 
@@ -186,7 +231,9 @@ def acquire(ctrl, file, overlap=None, times=None, channels=None, default=None, t
                 viewer=viewer,
             )
 
-        viewer.window.add_dock_widget(tile_widget(ctrl, viewer, on_tile), name="Acquisition Boundaries")
+        viewer.window.add_dock_widget(
+            tile_widget(ctrl, viewer, on_tile), name="Acquisition Boundaries"
+        )
     else:
         xp, viewer = tile_acq(
             ctrl,
@@ -198,6 +245,78 @@ def acquire(ctrl, file, overlap=None, times=None, channels=None, default=None, t
             channels=channels,
             default=default,
         )
+
+
+class TileWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setMaximumHeight(150)
+        layout = QGridLayout(self)
+
+        self.left_x = QLineEdit()
+        self.left_x.setValidator(QDoubleValidator())
+        self.left_y = QLineEdit()
+        self.left_y.setValidator(QDoubleValidator())
+        self.left_btn = QPushButton("Set")
+        self.left_btn.setMinimumWidth(50)
+
+        self.right_x = QLineEdit()
+        self.right_x.setValidator(QDoubleValidator())
+        self.right_y = QLineEdit()
+        self.right_y.setValidator(QDoubleValidator())
+        self.right_btn = QPushButton("Set")
+        self.right_btn.setMinimumWidth(50)
+
+        continue_btn = QPushButton("Continue")
+
+        layout.addWidget(QLabel("x"), 0, 1, alignment=Qt.AlignHCenter)
+        layout.addWidget(QLabel("y"), 0, 2, alignment=Qt.AlignHCenter)
+        layout.addWidget(QLabel("Top Left"), 1, 0)
+        layout.addWidget(left_x, 1, 1)
+        layout.addWidget(left_y, 1, 2)
+        layout.addWidget(left_btn, 1, 3)
+
+        layout.addWidget(QLabel("Bottom Right"), 2, 0)
+        layout.addWidget(right_x, 2, 1)
+        layout.addWidget(right_y, 2, 2)
+        layout.addWidget(right_btn, 2, 3)
+
+        layout.addWidget(continue_btn, 3, 0)
+
+        layout.setColumnMinimumWidth(3, 60)
+        layout.setHorizontalSpacing(10)
+
+        left_btn.clicked.connect(set_left)
+        right_btn.clicked.connect(set_right)
+        continue_btn.clicked.connect(next_step)
+
+    def set_left(self):
+        self.left_x.setText(str(ctrl.x))
+        self.left_y.setText(str(ctrl.y))
+
+    def set_right(self):
+        self.right_x.setText(str(ctrl.x))
+        self.right_y.setText(str(ctrl.y))
+
+    def next_step(self):
+        if (
+            self.left_x.text()
+            and self.left_y.text()
+            and self.right_x.text()
+            and self.right_y.text()
+        ):
+            self.close()
+            viewer.window.remove_dock_widget(widget)
+            callback(
+                (float(left_x.text()), float(left_y.text())),
+                (float(right_x.text()), float(right_y.text())),
+            )
+        else:
+            for w in [left_x, left_y, right_x, right_y]:
+                if not w.text():
+                    w.setStyleSheet("border: 1px solid red;")
+                else:
+                    w.setStyleSheet("border: 0px;")
 
 
 def tile_widget(ctrl, viewer, callback):
@@ -269,7 +388,15 @@ def tile_widget(ctrl, viewer, callback):
 
 
 def tile_acq(
-    ctrl, file, top_left, bot_right, overlap=None, times=None, channels=None, default=None, viewer=None
+    ctrl,
+    file,
+    top_left,
+    bot_right,
+    overlap=None,
+    times=None,
+    channels=None,
+    default=None,
+    viewer=None,
 ):
     tile = ctrl.snap()
     if overlap is None:
@@ -342,7 +469,7 @@ def tile_acq(
     xp.tile.data = da.from_zarr(tiles)
 
     if overlap is not None and overlap != 0:
-        img = xp.tile[..., : -overlap_y, : -overlap_x]
+        img = xp.tile[..., :-overlap_y, :-overlap_x]
     else:
         img = xp.tile
     img = img.transpose("tile_row", "tile_col", "tile_y", "tile_x", "channel", "time")
@@ -385,7 +512,9 @@ def tile_acq(
             {
                 "datetime": (
                     ("channel", "time", "tile_col", "tile_row"),
-                    np.zeros((len(channels), len(acq_times), len(ys), len(xs)), dtype="datetime64[ns]"),
+                    np.zeros(
+                        (len(channels), len(acq_times), len(ys), len(xs)), dtype="datetime64[ns]"
+                    ),
                 )
             }
         )
