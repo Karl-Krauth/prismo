@@ -203,6 +203,68 @@ def control_widget(ctrl):
     return widgets.Container(widgets=[x, y])
 
 
+class AcqClient:
+    def __init__(self, viewer, relay):
+        self._viewer = viewer
+        self._relay = relay
+        self._viewer.window.add_dock_widget(TileWidget(), name="Acquisition Boundaries")
+        img = self._relay.get("img")
+        self._viewer.add_image(img, name="live")
+        self._relay.poll(self.update_img, 1000 // 60, "img")
+
+    def acq_step(self, top_left, bot_right):
+        self._relay.post("acquire", top_left, bot_right)
+        self._timer = QTimer()
+        self._timer.timeout.connect(self.refresh)
+        self._timer.start(1000)
+        self._viewer.add_image(
+            img,
+            channel_axis=0,
+            name=list(channels.keys()),
+            multiscale=False,
+            cache=False,
+        )
+        self._viewer.dims.axis_labels = ["time", "y", "x"]
+        self._viewer.dims.current_step = (0,) + viewer.dims.current_step[1:]
+
+    def update_img(args):
+        if args is None:
+            return
+
+        img, idxs = args
+        tiles[idxs] = img
+        layer = viewer.layers[idxs[0]]
+        if idxs[1] == 0 and idxs[2] == 0 and idxs[3] == 0:
+            layer.contrast_limits = (img.min(), img.max())
+
+    def refresh(self):
+        for layer in viewer.layers:
+            layer.refresh()
+
+    def update_img(self, img):
+        self._viewer.layers[0].data = img
+
+
+def acquire(
+    ctrl, file, overlap=None, times=None, channels=None, default=None, top_left=None, bot_right=None
+):
+    gui = GUI(AcqClient)
+
+    img = ctrl.snap()
+
+    @gui.worker
+    def snap():
+        while True:
+            img[:] = ctrl.snap()
+
+    @gui.route("img")
+    def get_img():
+        return img
+
+    gui.start()
+
+    return gui
+
 def acquire(
     ctrl, file, overlap=None, times=None, channels=None, default=None, top_left=None, bot_right=None
 ):
@@ -248,7 +310,7 @@ def acquire(
 
 
 class TileWidget(QWidget):
-    def __init__(self):
+    def __init__(self, relay, next_step):
         super().__init__()
         self.setMaximumHeight(150)
         layout = QGridLayout(self)
@@ -288,17 +350,22 @@ class TileWidget(QWidget):
 
         left_btn.clicked.connect(set_left)
         right_btn.clicked.connect(set_right)
-        continue_btn.clicked.connect(next_step)
+        continue_btn.clicked.connect(cont)
+
+        self._relay = relay
+        self._next_step = next_step
 
     def set_left(self):
-        self.left_x.setText(str(ctrl.x))
-        self.left_y.setText(str(ctrl.y))
+        xy = self._relay.get("xy")
+        self.left_x.setText(str(xy[0]))
+        self.left_y.setText(str(xy[1]))
 
     def set_right(self):
+        xy = self._relay.get("xy")
         self.right_x.setText(str(ctrl.x))
         self.right_y.setText(str(ctrl.y))
 
-    def next_step(self):
+    def cont(self):
         if (
             self.left_x.text()
             and self.left_y.text()
@@ -306,85 +373,16 @@ class TileWidget(QWidget):
             and self.right_y.text()
         ):
             self.close()
-            viewer.window.remove_dock_widget(widget)
-            callback(
+            self._next_step(
                 (float(left_x.text()), float(left_y.text())),
                 (float(right_x.text()), float(right_y.text())),
             )
         else:
-            for w in [left_x, left_y, right_x, right_y]:
+            for w in [self.left_x, self.left_y, self.right_x, self.right_y]:
                 if not w.text():
                     w.setStyleSheet("border: 1px solid red;")
                 else:
                     w.setStyleSheet("border: 0px;")
-
-
-def tile_widget(ctrl, viewer, callback):
-    left_x = QLineEdit()
-    left_x.setValidator(QDoubleValidator())
-    left_y = QLineEdit()
-    left_y.setValidator(QDoubleValidator())
-    left_btn = QPushButton("Set")
-    left_btn.setMinimumWidth(50)
-
-    right_x = QLineEdit()
-    right_x.setValidator(QDoubleValidator())
-    right_y = QLineEdit()
-    right_y.setValidator(QDoubleValidator())
-    right_btn = QPushButton("Set")
-    right_btn.setMinimumWidth(50)
-
-    continue_btn = QPushButton("Continue")
-
-    widget = QWidget()
-    widget.setMaximumHeight(150)
-    layout = QGridLayout(widget)
-
-    layout.addWidget(QLabel("x"), 0, 1, alignment=Qt.AlignHCenter)
-    layout.addWidget(QLabel("y"), 0, 2, alignment=Qt.AlignHCenter)
-    layout.addWidget(QLabel("Top Left"), 1, 0)
-    layout.addWidget(left_x, 1, 1)
-    layout.addWidget(left_y, 1, 2)
-    layout.addWidget(left_btn, 1, 3)
-
-    layout.addWidget(QLabel("Bottom Right"), 2, 0)
-    layout.addWidget(right_x, 2, 1)
-    layout.addWidget(right_y, 2, 2)
-    layout.addWidget(right_btn, 2, 3)
-
-    layout.addWidget(continue_btn, 3, 0)
-
-    layout.setColumnMinimumWidth(3, 60)
-    layout.setHorizontalSpacing(10)
-
-    def on_set_left():
-        left_x.setText(str(ctrl.x))
-        left_y.setText(str(ctrl.y))
-
-    def on_set_right():
-        right_x.setText(str(ctrl.x))
-        right_y.setText(str(ctrl.y))
-
-    def on_continue():
-        if left_x.text() and left_y.text() and right_x.text() and right_y.text():
-            widget.close()
-            viewer.window.remove_dock_widget(widget)
-            callback(
-                (float(left_x.text()), float(left_y.text())),
-                (float(right_x.text()), float(right_y.text())),
-            )
-        else:
-            for w in [left_x, left_y, right_x, right_y]:
-                if not w.text():
-                    w.setStyleSheet("border: 1px solid red;")
-                else:
-                    w.setStyleSheet("border: 0px;")
-
-    left_btn.clicked.connect(on_set_left)
-    right_btn.clicked.connect(on_set_right)
-    continue_btn.clicked.connect(on_continue)
-
-    return widget
 
 
 def tile_acq(
