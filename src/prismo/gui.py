@@ -219,7 +219,6 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
     if isinstance(channels, int):
         channels = np.arange(channels, dtype=int)
 
-    print(acq_event.is_set())
     gui = GUI(lambda v, r: AcqClient(v, r, file=file))
 
     @gui.worker
@@ -242,7 +241,6 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
             xs = np.arange(top_left[0], bot_right[0] + delta_x - 1, delta_x)
             ys = np.arange(top_left[1], bot_right[1] + delta_y - 1, delta_y)
 
-        print(delta_x, delta_y, overlap_x, overlap_y)
         xp["tile"] = (
             ("channel", "time", "tile_row", "tile_col", "tile_y", "tile_x"),
             da.zeros(
