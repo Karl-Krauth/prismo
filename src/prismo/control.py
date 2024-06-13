@@ -10,7 +10,6 @@ import pymodbus.client
 from units import ureg
 
 
-
 def load(config, path=None):
     client = None
     core = pymmcore.CMMCore()
@@ -22,7 +21,6 @@ def load(config, path=None):
 
     os.environ["PATH"] += os.pathsep + path
     core.setDeviceAdapterSearchPaths([path])
-
 
     def set_props(name, props):
         for k, v in props.items():
@@ -44,7 +42,16 @@ def load(config, path=None):
     }
     for name, params in config.items():
         device = params.get("device")
-        if device is None or device not in ("asi_stage", "asi_zstage", "lambda_filter1", "lambda_filter2", "lambda_shutter1", "lambda_shutter2", "sola_light", "spectra_light"):
+        if device is None or device not in (
+            "asi_stage",
+            "asi_zstage",
+            "lambda_filter1",
+            "lambda_filter2",
+            "lambda_shutter1",
+            "lambda_shutter2",
+            "sola_light",
+            "spectra_light",
+        ):
             continue
         if "port" not in params:
             raise ValueError(f"{name} requires a port to be specified.")
@@ -70,12 +77,25 @@ def load(config, path=None):
         if name in ports:
             continue
         device = params["device"]
-        if (device in ("ti_focus", "ti_filter1", "ti_filter2", "ti_lightpath", "ti_objective") and
-            "ti_scope" not in core.getLoadedDevices()):
+        if (
+            device in ("ti_focus", "ti_filter1", "ti_filter2", "ti_lightpath", "ti_objective")
+            and "ti_scope" not in core.getLoadedDevices()
+        ):
             core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
-        elif (device in ("ti2_focus", "ti2_filter1", "ti2_filter2", "ti2_shutter1", "ti2_shutter2", "ti2_lightpath", "ti2_objective") and
-            "ti2_scope" not in core.getLoadedDevices()):
+        elif (
+            device
+            in (
+                "ti2_focus",
+                "ti2_filter1",
+                "ti2_filter2",
+                "ti2_shutter1",
+                "ti2_shutter2",
+                "ti2_lightpath",
+                "ti2_objective",
+            )
+            and "ti2_scope" not in core.getLoadedDevices()
+        ):
             core.loadDevice("ti2_scope", "NikonTi2", "Ti2-E__0")
             core.initializeDevice("ti2_scope")
 
@@ -159,7 +179,9 @@ def load(config, path=None):
             core.loadDevice(name, "NikonTI", "TILightPath")
             core.setParentLabel(name, "ti_scope")
             core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states", ["eye", "l100", "r100", "l80"])))
+            devices.append(
+                Selector(name, core, params.get("states", ["eye", "l100", "r100", "l80"]))
+            )
         elif device == "ti_focus":
             core.loadDevice(name, "NikonTI", "TIZDrive")
             core.setParentLabel(name, "ti_scope")
@@ -194,7 +216,9 @@ def load(config, path=None):
             core.loadDevice(name, "NikonTi2", "LightPath")
             core.setParentLabel(name, "ti_scope")
             core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states", ["eye", "l100", "r100", "l80"])))
+            devices.append(
+                Selector(name, core, params.get("states", ["eye", "l100", "r100", "l80"]))
+            )
         elif device == "ti2_focus":
             core.loadDevice(name, "NikonTi2", "ZDrive")
             core.setParentLabel(name, "ti2_scope")
@@ -456,13 +480,17 @@ class Stage:
 class Stateful(Protocol):
     state: str | int | float
 
+
 @runtime_checkable
 class Waitable(Protocol):
-    def wait() -> None: ...
+    def wait() -> None:
+        ...
+
 
 @runtime_checkable
 class Zooms(Protocol):
     zoom: float
+
 
 class Selector:
     def __init__(self, name, core, states=None):
@@ -475,7 +503,9 @@ class Selector:
             self.states = [i for i in range(n_states)]
         else:
             if len(self.states) < n_states:
-                raise ValueError(f"{name} requires {n_states} states (not {len(self.states)}) to be specified.")
+                raise ValueError(
+                    f"{name} requires {n_states} states (not {len(self.states)}) to be specified."
+                )
             for i, state in enumerate(self.states):
                 self._core.defineStateLabel(name, i, state)
 
@@ -508,7 +538,9 @@ class Objective:
             self.states = [i for i in range(n_states)]
         else:
             if len(self.states) < n_states:
-                raise ValueError(f"{name} requires {n_states} states (not {len(self.states)}) to be specified.")
+                raise ValueError(
+                    f"{name} requires {n_states} states (not {len(self.states)}) to be specified."
+                )
             for i, state in enumerate(self.states):
                 self._core.defineStateLabel(name, i, state)
         self.zooms = {state: zoom for state, zoom in zip(self.states, zooms)}
@@ -626,7 +658,7 @@ class Mux:
         elif waste_state and not io_state and not np.any(zeros_state) and not np.any(ones_state):
             return "waste"
         elif np.all(zeros_state + ones_state == 1) and io_state:
-            return sum(b * 2 ** i for i, b in enumerate(reversed(ones_state)))
+            return sum(b * 2**i for i, b in enumerate(reversed(ones_state)))
         else:
             return "invalid"
 
@@ -662,6 +694,7 @@ class Mux:
                     self._valves[self._ones[i]] = 0
             self._valves[self._waste] = 0
 
+
 class MiniChip:
     def __init__(self, name, mapping, valves):
         self.name = name
@@ -683,7 +716,7 @@ class MiniChip:
         elif not np.any(all_state):
             return "closed"
         elif np.all(zeros_state + ones_state == 1):
-            return sum(b * 2 ** i for i, b in enumerate(reversed(ones_state)))
+            return sum(b * 2**i for i, b in enumerate(reversed(ones_state)))
         else:
             return "invalid"
 
