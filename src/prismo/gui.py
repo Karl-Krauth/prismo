@@ -65,9 +65,11 @@ class GUI:
                     result = self._routes[route](*args, **kwargs)
                     if result is not None:
                         pipe.send(result)
-                except (BrokenPipeError, IOError, EOFError):
+                except (BrokenPipeError, EOFError):
                     self.quit()
-
+                except Exception as e:
+                    self.quit()
+                    raise e
         self._running = threading.Event()
         self._running.set()
         self._quit = threading.Event()
@@ -173,13 +175,14 @@ class AcqClient:
         self._live_timer.stop()
         self._viewer.layers.remove("live")
 
-        self._relay.post("acq", top_left, bot_right)
+        success = self._relay.get("acq", top_left, bot_right)
+        if not success:
+            return
 
         timer = QTimer()
         timer.timeout.connect(self.refresh)
         timer.start(1000)
 
-        time.sleep(1)
         xp = xr.open_zarr(self._file)
         xp["image"] = tiles_to_image(xp)
         self._viewer.add_image(
@@ -206,10 +209,8 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
     xp = xr.Dataset()
     acq_event = threading.Event()
     if (top_left is None or bot_right is None) and overlap is not None:
-        pos = [None, None]
         get_pos = True
     else:
-        pos = [top_left, bot_right]
         acq_event.set()
         get_pos = False
 
@@ -225,9 +226,13 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
     def acq():
         while not acq_event.is_set():
             tile[:] = ctrl.snap()
+            yield
 
-        top_left, bot_right = pos
+        for x in acq_func(xp, xs, ys):
+            yield
 
+    @gui.route("acq")
+    def start_acq(top_left, bot_right):
         if overlap is None:
             xs = np.array([ctrl.x])
             ys = np.array([ctrl.y])
@@ -264,7 +269,10 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
 
         store = zr.DirectoryStore(file)
         compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
-        xp.to_zarr(store, compute=False, encoding={"tile": {"compressor": compressor}})
+        try:
+            xp.to_zarr(store, compute=False, encoding={"tile": {"compressor": compressor}})
+        except:
+            raise FileExistsError(f"{file} already exists.")
 
         zarr_tiles = zr.open(file + "/tile", mode="a", synchronizer=zr.ThreadSynchronizer())
         zarr_tiles.fill_value = 0
@@ -274,15 +282,9 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
         xp.tile.data = tiles
 
         xp["image"] = tiles_to_image(xp)
-
-        for x in acq_func(xp, xs, ys):
-            yield x
-
-    @gui.route("acq")
-    def start_acq(top_left, bot_right):
-        pos[0] = top_left
-        pos[1] = bot_right
         acq_event.set()
+
+        return True
 
     @gui.route("img")
     def get_img():
