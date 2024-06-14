@@ -161,6 +161,7 @@ class AcqClient:
         self._relay = relay
         self._file = file
         self._live_timer = QTimer()
+        self._refresh_timer = QTimer()
 
         img = self._relay.get("img")
         self._viewer.add_image(img, name="live")
@@ -180,9 +181,8 @@ class AcqClient:
         if not success:
             return
 
-        timer = QTimer()
-        timer.timeout.connect(self.refresh)
-        timer.start(1000)
+        self._refresh_timer.timeout.connect(self.refresh)
+        self._refresh_timer.start(1000)
 
         xp = xr.open_zarr(self._file)
         xp["image"] = tiles_to_image(xp)
