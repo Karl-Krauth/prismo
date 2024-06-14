@@ -144,6 +144,7 @@ def live(ctrl):
     def snap():
         while True:
             img[:] = ctrl.snap()
+            yield
 
     @gui.route("img")
     def get_img():
@@ -205,8 +206,11 @@ class AcqClient:
 
 
 def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=None, bot_right=None):
+    store = zr.DirectoryStore(file)
+    compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
     tile = ctrl.snap()
     xp = xr.Dataset()
+    pos = [None, None]
     acq_event = threading.Event()
     if (top_left is None or bot_right is None) and overlap is not None:
         get_pos = True
@@ -228,8 +232,12 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
             tile[:] = ctrl.snap()
             yield
 
+        xs, ys = pos
         for x in acq_func(xp, xs, ys):
+            xp.to_zarr(store, compute=False, mode="a")
             yield
+
+
 
     @gui.route("acq")
     def start_acq(top_left, bot_right):
@@ -267,8 +275,6 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
         xp.attrs["acq_func"] = dill.source.getsource(acq_func)
         xp.attrs["overlap"] = overlap
 
-        store = zr.DirectoryStore(file)
-        compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
         try:
             xp.to_zarr(store, compute=False, encoding={"tile": {"compressor": compressor}})
         except:
@@ -282,6 +288,8 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
         xp.tile.data = tiles
 
         xp["image"] = tiles_to_image(xp)
+        pos[0] = xs
+        pos[1] = ys
         acq_event.set()
 
         return True
