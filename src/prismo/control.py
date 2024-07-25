@@ -1,13 +1,10 @@
+from typing import runtime_checkable, Protocol
 import collections
 import os
-from typing import runtime_checkable, Protocol
 
 import numpy as np
-import pint
 import pymmcore
 import pymodbus.client
-
-from units import ureg
 
 
 def load(config, path=None):
@@ -423,7 +420,7 @@ class Camera:
 
     @property
     def px_len(self):
-        return self.binning * 6.5 * ureg.um / ureg.px
+        return self.binning * 6.5
 
 
 class Focus:

@@ -1,28 +1,15 @@
+from qtpy.QtCore import QTimer
 import dill
-import multiprocess
-import time
-
-from magicgui import widgets
-from napari.qt.threading import thread_worker, create_worker
-from qtpy import QtCore
-from qtpy.QtCore import Qt, QTimer
-from qtpy.QtWidgets import (
-    QGridLayout,
-    QLabel,
-    QLineEdit,
-    QPushButton,
-    QWidget,
-)
-from qtpy.QtGui import QDoubleValidator
-import napari
 import dask.array as da
+import napari
+import multiprocess
 import numcodecs
 import numpy as np
 import threading
 import xarray as xr
 import zarr as zr
 
-from units import ureg
+import widgets
 
 
 class Relay:
@@ -70,6 +57,7 @@ class GUI:
                 except Exception as e:
                     self.quit()
                     raise e
+
         self._running = threading.Event()
         self._running.set()
         self._quit = threading.Event()
@@ -169,7 +157,7 @@ class AcqClient:
         self._live_timer.timeout.connect(self.update_img)
         self._live_timer.start(1000 // 60)
         self._viewer.window.add_dock_widget(
-            TileWidget(self._relay, self.acq_step), name="Acquisition Boundaries"
+            widgets.BoundarySelector(self._relay, self.acq_step), name="Acquisition Boundaries"
         )
 
     def acq_step(self, top_left, bot_right):
@@ -237,8 +225,6 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
             xp.to_zarr(store, compute=False, mode="a")
             yield
 
-
-
     @gui.route("acq")
     def start_acq(top_left, bot_right):
         if overlap is None:
@@ -249,8 +235,8 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
             height = tile.shape[0]
             overlap_x = int(round(overlap * width))
             overlap_y = int(round(overlap * height))
-            delta_x = ((width - overlap_x) * ureg.px * ctrl.px_len).to("um").magnitude
-            delta_y = ((height - overlap_y) * ureg.px * ctrl.px_len).to("um").magnitude
+            delta_x = (width - overlap_x) * ctrl.px_len
+            delta_y = (height - overlap_y) * ctrl.px_len
             xs = np.arange(top_left[0], bot_right[0] + delta_x - 1, delta_x)
             ys = np.arange(top_left[1], bot_right[1] + delta_y - 1, delta_y)
 
@@ -327,79 +313,3 @@ def tiles_to_image(xp):
     img = img.rename(tile_y="im_y", tile_x="im_x")
     img = img.transpose("channel", "time", "im_y", "im_x")
     return img
-
-
-class TileWidget(QWidget):
-    def __init__(self, relay, next_step):
-        super().__init__()
-        self.setMaximumHeight(150)
-        layout = QGridLayout(self)
-
-        self.left_x = QLineEdit()
-        self.left_x.setValidator(QDoubleValidator())
-        self.left_y = QLineEdit()
-        self.left_y.setValidator(QDoubleValidator())
-        self.left_btn = QPushButton("Set")
-        self.left_btn.setMinimumWidth(50)
-
-        self.right_x = QLineEdit()
-        self.right_x.setValidator(QDoubleValidator())
-        self.right_y = QLineEdit()
-        self.right_y.setValidator(QDoubleValidator())
-        self.right_btn = QPushButton("Set")
-        self.right_btn.setMinimumWidth(50)
-
-        continue_btn = QPushButton("Continue")
-
-        layout.addWidget(QLabel("x"), 0, 1, alignment=Qt.AlignHCenter)
-        layout.addWidget(QLabel("y"), 0, 2, alignment=Qt.AlignHCenter)
-        layout.addWidget(QLabel("Top Left"), 1, 0)
-        layout.addWidget(self.left_x, 1, 1)
-        layout.addWidget(self.left_y, 1, 2)
-        layout.addWidget(self.left_btn, 1, 3)
-
-        layout.addWidget(QLabel("Bottom Right"), 2, 0)
-        layout.addWidget(self.right_x, 2, 1)
-        layout.addWidget(self.right_y, 2, 2)
-        layout.addWidget(self.right_btn, 2, 3)
-
-        layout.addWidget(continue_btn, 3, 0)
-
-        layout.setColumnMinimumWidth(3, 60)
-        layout.setHorizontalSpacing(10)
-
-        self.left_btn.clicked.connect(self.set_left)
-        self.right_btn.clicked.connect(self.set_right)
-        continue_btn.clicked.connect(self.cont)
-
-        self._relay = relay
-        self._next_step = next_step
-
-    def set_left(self):
-        xy = self._relay.get("xy")
-        self.left_x.setText(str(xy[0]))
-        self.left_y.setText(str(xy[1]))
-
-    def set_right(self):
-        xy = self._relay.get("xy")
-        self.right_x.setText(str(xy[0]))
-        self.right_y.setText(str(xy[1]))
-
-    def cont(self):
-        if (
-            self.left_x.text()
-            and self.left_y.text()
-            and self.right_x.text()
-            and self.right_y.text()
-        ):
-            self.close()
-            self._next_step(
-                (float(self.left_x.text()), float(self.left_y.text())),
-                (float(self.right_x.text()), float(self.right_y.text())),
-            )
-        else:
-            for w in [self.left_x, self.left_y, self.right_x, self.right_y]:
-                if not w.text():
-                    w.setStyleSheet("border: 1px solid red;")
-                else:
-                    w.setStyleSheet("border: 0px;")
