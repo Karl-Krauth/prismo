@@ -119,6 +119,9 @@ def load(config, path=None):
             core.loadDevice(name, "DemoCamera", "DXYStage")
             core.initializeDevice(name)
             devices.append(Stage(name, core))
+        elif device == "demo_valves":
+            devices.append(DemoValves(name, params.get("valves")))
+            valves = devices[-1]
         elif device == "lambda_filter1":
             core.loadDevice(name, "SutterLambda", "Wheel-A")
             core.setProperty(name, "Port", params["port"])
@@ -480,8 +483,7 @@ class Stateful(Protocol):
 
 @runtime_checkable
 class Waitable(Protocol):
-    def wait() -> None:
-        ...
+    def wait() -> None: ...
 
 
 @runtime_checkable
@@ -604,6 +606,20 @@ class SolaLight:
     @state.setter
     def state(self, new_state):
         self._core.setProperty(self.name, "White_Level", new_state)
+
+
+class DemoValves:
+    def __init__(self, name, valves=None):
+        self.name = name
+        if valves is None:
+            valves = [i for i in range(48)]
+        self.valves = {k: 1 for k in valves}
+
+    def __getitem__(self, key):
+        return self.valves[key]
+
+    def __setitem__(self, key, value):
+        self.valves = int((value != "off") and (value != 0))
 
 
 class Valves:
