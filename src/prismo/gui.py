@@ -157,7 +157,12 @@ class AcqClient:
         self._live_timer.timeout.connect(self.update_img)
         self._live_timer.start(1000 // 60)
         self._viewer.window.add_dock_widget(
-            widgets.BoundarySelector(self._relay, self.acq_step), name="Acquisition Boundaries"
+            widgets.BoundarySelector(self._relay, self.acq_step),
+            name="Acquisition Boundaries",
+            tabify=True,
+        )
+        self._viewer.window.add_dock_widget(
+            widgets.ValveController(self._relay), name="Valve Controls", tabify=True
         )
 
     def acq_step(self, top_left, bot_right):
@@ -222,8 +227,16 @@ def acquire(ctrl, file, acq_func, times=1, channels=1, overlap=None, top_left=No
 
         xs, ys = pos
         for x in acq_func(xp, xs, ys):
-            xp.to_zarr(store, compute=False, mode="a")
+            xp.drop_vars("image").to_zarr(store, compute=False, mode="a")
             yield
+
+    @gui.route("valves")
+    def get_valves():
+        return ctrl.valves.valves
+
+    @gui.route("set_valve")
+    def set_valve(idx, value):
+        ctrl.valves[idx] = value
 
     @gui.route("acq")
     def start_acq(top_left, bot_right):
