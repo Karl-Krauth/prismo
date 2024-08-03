@@ -56,13 +56,13 @@ class BoundarySelector(QWidget):
 
     def set_left(self):
         xy = self._relay.get("xy")
-        self.left_x.setText(str(xy[0]))
-        self.left_y.setText(str(xy[1]))
+        self.left_x.setText(f"{xy[0]:.2f}")
+        self.left_y.setText(f"{xy[1]:.2f}")
 
     def set_right(self):
         xy = self._relay.get("xy")
-        self.right_x.setText(str(xy[0]))
-        self.right_y.setText(str(xy[1]))
+        self.right_x.setText(f"{xy[0]:.2f}")
+        self.right_y.setText(f"{xy[1]:.2f}")
 
     def next_step(self):
         if (
