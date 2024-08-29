@@ -233,23 +233,32 @@ class AcqClient:
     def refresh(self):
         arrays = self._relay.get("arrays")
         new_arrays = arrays - self._arrays
+        first_images = len(self._arrays) == 0
         self._arrays = arrays.union(self._arrays)
         for arr in new_arrays:
             xp = xr.open_zarr(self._file, group=arr)
             xp = xp[arr].assign_attrs(xp.attrs)
             img = tiles_to_image(xp)
-            dims = img.dims
-            channels = None
-            if "channel" in dims:
-                channel = [f"{arr}: {c}" for c in xp.coords["channel"].to_numpy()]
+
+            layer_names = arr
+            if "channel" in img.dims:
+                layer_names = [f"{arr}: {c}" for c in xp.coords["channel"].to_numpy()]
+
+            viewer_dims = self._viewer.dims.axis_labels[:-2] + ("y", "x")
+            img = img.expand_dims([d for d in viewer_dims if d not in img.dims])
+            img = img.transpose("channel", ..., *viewer_dims, missing_dims="ignore")
+
             self._viewer.add_image(
                 img,
-                channel_axis=dims.index("channel") if "channel" in dims else None,
-                name=channels,
+                channel_axis=0 if "channel" in img.dims else None,
+                name=layer_names,
                 multiscale=False,
                 cache=False,
             )
-            # self._viewer.dims.axis_labels = ["time", "y", "x"]
+
+            new_dims = tuple(d for d in img.dims if d not in viewer_dims and d != "channel")
+            self._viewer.dims.axis_labels = new_dims + viewer_dims
+            print(self._viewer.dims.axis_labels)
             # self._viewer.dims.current_step = (0,) + self._viewer.dims.current_step[1:]
         for layer in self._viewer.layers:
             layer.refresh()
@@ -344,7 +353,8 @@ class DiskArray(da.core.Array):
 
 def tiles_to_image(xp):
     if "overlap" not in xp.attrs:
-        return xp
+        return xp.transpose(..., "y", "x")
+
     if xp.attrs["overlap"] != 0:
         overlap_y = int(round(xp.attrs["overlap"] * xp.shape[-2]))
         overlap_x = int(round(xp.attrs["overlap"] * xp.shape[-1]))
@@ -352,8 +362,12 @@ def tiles_to_image(xp):
     else:
         img = xp
 
-    img = img.transpose("row", "col", "y", "x", "channel", "time")
-    img = xr.concat(img, dim="y")
-    img = xr.concat(img, dim="x")
-    img = img.transpose("channel", "time", "y", "x")
+    if "row" in img.dims:
+        img = img.transpose("row", "y", ...)
+        img = xr.concat(img, dim="y")
+    if "col" in img.dims:
+        img = img.transpose("col", "x", ...)
+        img = xr.concat(img, dim="x")
+
+    img = img.transpose(..., "y", "x")
     return img
