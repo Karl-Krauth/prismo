@@ -248,18 +248,24 @@ class AcqClient:
             img = img.expand_dims([d for d in viewer_dims if d not in img.dims])
             img = img.transpose("channel", ..., *viewer_dims, missing_dims="ignore")
 
-            self._viewer.add_image(
+            layers = self._viewer.add_image(
                 img,
                 channel_axis=0 if "channel" in img.dims else None,
                 name=layer_names,
                 multiscale=False,
                 cache=False,
             )
+            layers = layers if isinstance(layers, list) else [layers]
+
+            for layer in layers:
+                self._viewer.window._qt_viewer._controls.widgets[
+                    layer
+                ].autoScaleBar._auto_btn.click()
 
             new_dims = tuple(d for d in img.dims if d not in viewer_dims and d != "channel")
             self._viewer.dims.axis_labels = new_dims + viewer_dims
             print(self._viewer.dims.axis_labels)
-            # self._viewer.dims.current_step = (0,) + self._viewer.dims.current_step[1:]
+
         for layer in self._viewer.layers:
             layer.refresh()
 
