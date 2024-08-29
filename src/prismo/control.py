@@ -619,7 +619,7 @@ class DemoValves:
         return self.valves[key]
 
     def __setitem__(self, key, value):
-        self.valves = int((value != "off") and (value != 0))
+        self.valves[key] = int((value != "off") and (value != 0))
 
 
 class Valves:
