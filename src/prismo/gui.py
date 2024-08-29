@@ -111,7 +111,7 @@ class GUI:
 
         return decorator
 
-    def new_array(self, name, dims):
+    def new_array(self, name, **dims):
         xp = xr.Dataset()
         shape = tuple(x if isinstance(x, int) else len(x) for x in dims.values())
         xp["tile"] = (
@@ -131,11 +131,15 @@ class GUI:
         store = zr.DirectoryStore(self._file)
         compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
         try:
-            xp.to_zarr(store, group=name, compute=False, encoding={"tile": {"compressor": compressor}})
+            xp.to_zarr(
+                store, group=name, compute=False, encoding={"tile": {"compressor": compressor}}
+            )
         except:
             raise FileExistsError(f"{self._file} already exists.")
 
-        zarr_tiles = zr.open(store, path=name + "/tile", mode="a", synchronizer=zr.ThreadSynchronizer())
+        zarr_tiles = zr.open(
+            store, path=name + "/tile", mode="a", synchronizer=zr.ThreadSynchronizer()
+        )
         zarr_tiles.fill_value = 0
         tiles = da.from_zarr(zarr_tiles)
         tiles.__class__ = DiskArray
@@ -152,7 +156,7 @@ class GUI:
         with self._array_lock:
             arrs = dict(self._arrays)
         return arrs
-        
+
     def __del__(self):
         self.quit()
 
@@ -220,7 +224,6 @@ class AcqClient:
         self._relay.post("acq", top_left, bot_right)
         self._refresh_timer.timeout.connect(self.refresh)
         self._refresh_timer.start(1000)
-
 
     def refresh(self):
         arrays = self._relay.get("arrays")
