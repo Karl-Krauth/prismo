@@ -627,14 +627,18 @@ class Valves:
         self.name = name
         if valves is None:
             valves = [i for i in range(48)]
-        self.valves = valves
+        self._valves = valves
         self._client = client
+
+    @property
+    def valves(self):
+        return {v: self[v] for v in self._valves}
 
     def __getitem__(self, key):
         if isinstance(key, int):
             addr = key
         else:
-            addr = self.valves.index(key)
+            addr = self._valves.index(key)
         addr += 512
         return 0 if self._client.read_coils(addr, 1).bits[0] else 1
 
@@ -642,7 +646,7 @@ class Valves:
         if isinstance(key, int):
             addr = key
         else:
-            addr = self.valves.index(key)
+            addr = self._valves.index(key)
         self._client.write_coil(addr, (value == "off") or (value == 0))
 
 
