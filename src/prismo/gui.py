@@ -36,7 +36,7 @@ class Relay:
 
 
 class GUI:
-    def __init__(self, gui_func, file=None, tile=None):
+    def __init__(self, gui_func, file=None, tile=None, attrs=None):
         def run_gui(pipe):
             viewer = napari.Viewer()
             relay = Relay(pipe)
@@ -73,6 +73,7 @@ class GUI:
         self._array_lock = threading.Lock()
         self._file = file
         self._tile = tile
+        self._attrs = attrs if attrs is not None else {}
 
     def start(self):
         self._gui_process.start()
@@ -111,48 +112,55 @@ class GUI:
 
         return decorator
 
-    def new_array(self, name, dims):
-        xp = xr.Dataset()
+    def new_array(self, name, **dims):
         shape = tuple(x if isinstance(x, int) else len(x) for x in dims.values())
-        xp["tile"] = (
-            tuple(dims.keys()) + ("im_y", "im_x"),
-            da.zeros(
+        xp = xr.DataArray(
+            data=da.zeros(
                 shape=shape + self._tile.shape,
                 chunks=(1,) * len(dims) + self._tile.shape,
                 dtype=self._tile.dtype,
             ),
+            dims=tuple(dims.keys()) + ("y", "x"),
+            name=name,
         )
 
         for dim_name, coords in dims.items():
-            if isinstance(coords, int):
-                continue
-            xp.coords[dim_name] = coords
+            if not isinstance(coords, int):
+                xp.coords[dim_name] = coords
 
         store = zr.DirectoryStore(self._file)
         compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
-        try:
-            xp.to_zarr(store, group=name, compute=False, encoding={"tile": {"compressor": compressor}})
-        except:
-            raise FileExistsError(f"{self._file} already exists.")
 
-        zarr_tiles = zr.open(store, path=name + "/tile", mode="a", synchronizer=zr.ThreadSynchronizer())
+        for attr_name, attr in self._attrs.items():
+            xp.attrs[attr_name] = attr
+
+        try:
+            xp.to_dataset(promote_attrs=True).to_zarr(
+                store, group=name, compute=False, encoding={name: {"compressor": compressor}}
+            )
+        except:
+            raise FileExistsError(f"{self._file}/{name} already exists.")
+
+        zarr_tiles = zr.open(
+            store, path=name + "/" + name, mode="a", synchronizer=zr.ThreadSynchronizer()
+        )
         zarr_tiles.fill_value = 0
         tiles = da.from_zarr(zarr_tiles)
         tiles.__class__ = DiskArray
         tiles._zarr_array = zarr_tiles
-        xp.tile.data = tiles
+        xp.data = tiles
 
         with self._array_lock:
-            self._arrays[name] = xp["tile"]
+            self._arrays[name] = xp
 
-        return xp["tile"]
+        return xp
 
     @property
     def arrays(self):
         with self._array_lock:
             arrs = dict(self._arrays)
         return arrs
-        
+
     def __del__(self):
         self.quit()
 
@@ -219,26 +227,44 @@ class AcqClient:
 
         self._relay.post("acq", top_left, bot_right)
         self._refresh_timer.timeout.connect(self.refresh)
-        self._refresh_timer.start(1000)
-
+        self._refresh_timer.start(100)
 
     def refresh(self):
         arrays = self._relay.get("arrays")
         new_arrays = arrays - self._arrays
+        first_images = len(self._arrays) == 0
         self._arrays = arrays.union(self._arrays)
         for arr in new_arrays:
             xp = xr.open_zarr(self._file, group=arr)
-            xp["image"] = tiles_to_image(xp)
-            dims = xp["image"].dims
-            self._viewer.add_image(
-                xp["image"],
-                channel_axis=dims.index("channel") if "channel" in dims else None,
-                name=list(xp["channel"].to_numpy()) if "channel" in xp else None,
+            xp = xp[arr].assign_attrs(xp.attrs)
+            img = tiles_to_image(xp)
+
+            layer_names = arr
+            if "channel" in img.dims:
+                layer_names = [f"{arr}: {c}" for c in xp.coords["channel"].to_numpy()]
+
+            viewer_dims = self._viewer.dims.axis_labels[:-2] + ("y", "x")
+            img = img.expand_dims([d for d in viewer_dims if d not in img.dims])
+            img = img.transpose("channel", ..., *viewer_dims, missing_dims="ignore")
+
+            layers = self._viewer.add_image(
+                img,
+                channel_axis=0 if "channel" in img.dims else None,
+                name=layer_names,
                 multiscale=False,
                 cache=False,
             )
-            # self._viewer.dims.axis_labels = ["time", "y", "x"]
-            # self._viewer.dims.current_step = (0,) + self._viewer.dims.current_step[1:]
+            layers = layers if isinstance(layers, list) else [layers]
+
+            for layer in layers:
+                self._viewer.window._qt_viewer._controls.widgets[
+                    layer
+                ].autoScaleBar._auto_btn.click()
+
+            new_dims = tuple(d for d in img.dims if d not in viewer_dims and d != "channel")
+            self._viewer.dims.axis_labels = new_dims + viewer_dims
+            print(self._viewer.dims.axis_labels)
+
         for layer in self._viewer.layers:
             layer.refresh()
 
@@ -257,7 +283,12 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
         acq_event.set()
         get_pos = False
 
-    gui = GUI(lambda v, r: AcqClient(v, r, file=file), file, ctrl.snap())
+    gui = GUI(
+        lambda v, r: AcqClient(v, r, file=file),
+        file,
+        ctrl.snap(),
+        dict(overlap=overlap, acq_func=dill.source.getsource(acq_func)),
+    )
 
     @gui.worker
     def acq():
@@ -269,7 +300,9 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
         store = zr.DirectoryStore(file)
         for x in acq_func(gui, xs, ys):
             for name, xp in gui.arrays.items():
-                xp.to_zarr(store, group=name, compute=False, mode="a")
+                xp.to_dataset(promote_attrs=True).to_zarr(
+                    store, group=name, compute=False, mode="a"
+                )
             yield
 
     @gui.route("valves")
@@ -324,19 +357,22 @@ class DiskArray(da.core.Array):
 
 
 def tiles_to_image(xp):
-    if "overlap" not in xp:
-        return xp.tile
+    if "overlap" not in xp.attrs:
+        return xp.transpose(..., "y", "x")
 
-    if xp.overlap != 0:
-        overlap_y = int(round(xp.overlap * xp.tile.shape[-2]))
-        overlap_x = int(round(xp.overlap * xp.tile.shape[-1]))
-        img = xp.tile[..., :-overlap_y, :-overlap_x]
+    if xp.attrs["overlap"] != 0:
+        overlap_y = int(round(xp.attrs["overlap"] * xp.shape[-2]))
+        overlap_x = int(round(xp.attrs["overlap"] * xp.shape[-1]))
+        img = xp[..., :-overlap_y, :-overlap_x]
     else:
-        img = xp.tile
+        img = xp
 
-    img = img.transpose("tile_row", "tile_col", "tile_y", "tile_x", "channel", "time")
-    img = xr.concat(img, dim="tile_y")
-    img = xr.concat(img, dim="tile_x")
-    img = img.rename(tile_y="im_y", tile_x="im_x")
-    img = img.transpose("channel", "time", "im_y", "im_x")
+    if "row" in img.dims:
+        img = img.transpose("row", "y", ...)
+        img = xr.concat(img, dim="y")
+    if "col" in img.dims:
+        img = img.transpose("col", "x", ...)
+        img = xr.concat(img, dim="x")
+
+    img = img.transpose(..., "y", "x")
     return img

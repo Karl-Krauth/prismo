@@ -1,0 +1,56 @@
+[tool.poetry]
+name = "prismo"
+version = "0.0.1"
+description = "A microscopy image acquisition toolkit."
+authors = ["Karl Krauth <karl.krauth@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.8, <3.13"
+
+[tool.poetry.group.dev.dependencies]
+black = ">=22.6.0"
+mypy = "^1.0.1"
+pytest = ">=7.1.2"
+ruff = ">=0.0.249"
+sphinx = "^5.0.2"
+sphinx-autodoc-typehints = "^1.22"
+sphinx-press-theme = ">=0.8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.mypy]
+python_version = "3.10"
+
+# Disallow untyped definitions.
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+
+# None and optional handling
+no_implicit_optional = true
+
+# Configuring warnings
+warn_unused_ignores = true
+warn_no_return = true
+warn_return_any = true
+warn_redundant_casts = true
+
+# Misc things
+strict_equality = true
+
+# Config file
+warn_unused_configs = true
+
+ignore_missing_imports = true
