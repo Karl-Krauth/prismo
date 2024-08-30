@@ -1,3 +1,5 @@
+import functools
+
 from qtpy.QtCore import Qt, QTimer
 from qtpy.QtWidgets import (
     QGridLayout,
@@ -34,6 +36,7 @@ class BoundarySelector(QWidget):
         layout.addWidget(QLabel("x"), 0, 1, alignment=Qt.AlignHCenter)
         layout.addWidget(QLabel("y"), 0, 2, alignment=Qt.AlignHCenter)
         layout.addWidget(QLabel("Top Left"), 1, 0)
+        layout.addWidget(QLabel("Bottom Right"), 2, 0)
         layout.addWidget(self.left_x, 1, 1)
         layout.addWidget(self.left_y, 1, 2)
         layout.addWidget(self.left_btn, 1, 3)
@@ -90,28 +93,36 @@ class ValveController(QWidget):
         self._relay = relay
         self._valves = self._relay.get("valves")
         self._valve_btns = {}
-        # self.setMaximumHeight(150)
+        self.setMaximumHeight(150)
         layout = QGridLayout(self)
+        layout.setHorizontalSpacing(0)
+        layout.setVerticalSpacing(0)
+        self._timer = QTimer()
+        self._timer.timeout.connect(self.update_valves)
+        self._timer.start(100)
 
         for i, (k, v) in enumerate(self._valves.items()):
             btn = QPushButton(str(k))
-            btn.setStyleSheet(f"background-color: {'green' if v else 'red'};")
+            btn.setStyleSheet(self.button_stylesheet(v))
             btn.setMinimumWidth(10)
-            btn.clicked.connect(lambda: self.toggle_valve(k))
-            layout.addWidget(btn, i % 8, i // 8)
+            btn.clicked.connect(functools.partial(self.toggle_valve, k))
+            layout.addWidget(btn, i // 8, i % 8)
             self._valve_btns[k] = btn
-
-        layout.addWidget(QLabel("Bottom Right"), 2, 0)
-        # layout.setColumnMinimumWidth(3, 60)
-        # layout.setHorizontalSpacing(10)
 
     def update_valves(self):
         self._valves = self._relay.get("valves")
         for k, v in self._valves.items():
-            self.valve_btns[k].setStyleSheet(f"background-color: {'green' if v else 'red'};")
+            self._valve_btns[k].setStyleSheet(self.button_stylesheet(v))
 
     def toggle_valve(self, key):
         v = not self._valves[key]
         self._valves[key] = v
         self._relay.post("set_valve", key, v)
-        self._valve_btns[key].setStyleSheet(f"background-color: {'green' if v else 'red'};")
+        self._valve_btns[key].setStyleSheet(self.button_stylesheet(v))
+
+    def button_stylesheet(self, is_green):
+        return (
+            f"background-color: {'green' if is_green else 'red'};"
+             "margin: 0.5px;"
+             "border-radius: 0px;"
+        )
