@@ -9,7 +9,7 @@ import threading
 import xarray as xr
 import zarr as zr
 
-import widgets
+from prismo import widgets
 
 
 class Relay:
