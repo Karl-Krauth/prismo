@@ -125,9 +125,8 @@ class GUI:
         )
 
         for dim_name, coords in dims.items():
-            if isinstance(coords, int):
-                continue
-            xp.coords[dim_name] = coords
+            if not isinstance(coords, int):
+                xp.coords[dim_name] = coords
 
         store = zr.DirectoryStore(self._file)
         compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
