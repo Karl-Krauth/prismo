@@ -11,9 +11,9 @@ project(
 py = import('python').find_installation(pure: false)
 pybind11_dep = dependency('pybind11')
 
-py.extension_module('_core',
-    'src/prismo/main.cpp',
-    subdir: 'prismo',
+py.extension_module('thor_light',
+    'src/prismo/devices/thor_light/thor_light.cpp',
+    subdir: 'prismo/devices/thor_light',
     install: true,
     dependencies : [pybind11_dep],
 )

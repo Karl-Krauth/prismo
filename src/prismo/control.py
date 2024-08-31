@@ -6,6 +6,8 @@ import numpy as np
 import pymmcore
 import pymodbus.client
 
+import prismo.devices as dev
+
 
 def load(config, path=None):
     client = None
@@ -253,9 +255,12 @@ class Control:
     def __init__(self, core, devices=None):
         if devices is None:
             devices = {}
-        super(Control, self).__setattr__("devices", devices)
-        self._core = core
 
+        # We can't directly set self.devices = devices since our overriden method
+        # depends on self.devices being set.
+        super(Control, self).__setattr__("devices", devices)
+
+        self._core = core
         self._camera = None
         for device in self.devices:
             if isinstance(device, Camera):
