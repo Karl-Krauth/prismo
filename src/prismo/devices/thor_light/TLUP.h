@@ -11,7 +11,7 @@
 #ifndef _TLUP_DRIVER_HEADER_
 #define _TLUP_DRIVER_HEADER_
 
-#include <vpptype.h> 
+#include "vpptype.h"
 
 #if defined(__cplusplus) || defined(__cplusplus__)
 extern "C" 
