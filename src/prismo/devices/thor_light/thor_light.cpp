@@ -1,5 +1,5 @@
+#include <mutex>
 #include <stdexcept>
-#include <ranges>
 #include <string>
 #include <vector>
 
@@ -9,7 +9,11 @@
 #include "TLUP.h"
 
 
+std::mutex mutex;
+
+
 std::vector<std::string> devices() {
+    const std::lock_guard<std::mutex> lock(mutex);
     ViStatus err;
     ViUInt32 num_rsrc;
     err = TLUP_findRsrc(0, &num_rsrc);
@@ -30,7 +34,30 @@ std::vector<std::string> devices() {
     return names;
 }
 
+
+unsigned int init(std::string port) {
+    const std::lock_guard<std::mutex> lock(mutex);
+    unsigned int device_id;
+    ViStatus err = TLUP_init(port, VI_FALSE, VI_FALSE, &device_id);
+    if (err != VI_SUCCESS) {
+         throw std::runtime_error("Could not initialize device. Error code: " + std::to_string(err)); 
+    }
+
+    return device_id;
+}
+
+
+void close(unsigned int device_id) {
+    const std::lock_guard<std::mutex> lock(mutex);
+    ViStatus err = TLUP_close(device_id);
+    if (err != VI_SUCCESS) {
+         throw std::runtime_error("Could not close device. Error code: " + std::to_string(err)); 
+    }
+}
+
+
 PYBIND11_MODULE(thor_light, m) {
     m.def("devices", &devices);
-    m.def("subtract", [](int i, int j) { return i + j; });
+    m.def("init", &init);
+    m.def("close", &close);
 }
