@@ -48,7 +48,7 @@ unsigned int init_device(std::string port) {
 }
 
 
-void close_device(int device_id) {
+void close_device(unsigned int device_id) {
     const std::lock_guard<std::mutex> lock(mutex);
     int err = TLUP_close(device_id);
     if (err != VI_SUCCESS) {
@@ -58,11 +58,11 @@ void close_device(int device_id) {
 
 
 std::tuple<std::string, std::string, double, double, double>
-info(uint32_t device_id) {
+info(unsigned int device_id) {
     const std::lock_guard<std::mutex> lock(mutex);
     char name[256];
     char serial_num[256];
-    ViReal64 ampere_limit, volt_limit, wavelength;
+    double ampere_limit, volt_limit, wavelength;
     int err = TLUP_getLedInfo(device_id, name, serial_num, &ampere_limit, &volt_limit, &wavelength);
     if (err != VI_SUCCESS) {
          throw std::runtime_error("Could not get device info. Error code: " + std::to_string(err)); 
@@ -72,9 +72,39 @@ info(uint32_t device_id) {
 }
 
 
+double get_amps(unsigned int device_id) {
+    double amps;
+    int err = TLUP_getLedCurrentSetpoint(device_id, TLUP_ATTR_SET_VAL, &amps);
+    if (err != VI_SUCCESS) {
+         throw std::runtime_error("Could not get device current. Error code: " + std::to_string(err)); 
+    }
+
+    return amps;
+}
+
+
+void set_amps(unsigned int device_id, double amps) {
+    int err = TLUP_setLedCurrentSetpoint(device_id, amps);
+    if (err != VI_SUCCESS) {
+         throw std::runtime_error("Could not set device current. Error code: " + std::to_string(err)); 
+    }
+}
+
+
+void set_output(unsigned int device_id, bool enable) {
+    int err = TLUP_switchLedOutput(device_id, enable);
+    if (err != VI_SUCCESS) {
+         throw std::runtime_error("Could not set device output. Error code: " + std::to_string(err)); 
+    }
+}
+
+
 PYBIND11_MODULE(thor_light, m) {
     m.def("devices", &devices);
     m.def("init", &init_device);
     m.def("close", &close_device);
     m.def("info", &info);
+    m.def("get_amps", &get_amps);
+    m.def("set_amps", &set_amps);
+    m.def("set_output", &set_output);
 }
