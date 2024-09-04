@@ -10,7 +10,7 @@ import numpy as np
 import xarray as xr
 import zarr as zr
 
-from . import widgets
+from .widgets import BoundarySelector, init_widgets
 
 
 class Relay:
@@ -95,12 +95,17 @@ class GUI:
 
         return func
 
-    def route(self, route):
-        def decorator(func):
-            self._routes[route] = func
-            return func
+    def route(self, name, func=None):
+        if func is None:
+            # route got called as a decorator.
+            def decorator(func):
+                self._routes[name] = func
+                return func
 
-        return decorator
+            return decorator
+        else:
+            # route got called as a standard method.
+            self._routes[name] = func
 
     def new_array(self, name, **dims):
         shape = tuple(x if isinstance(x, int) else len(x) for x in dims.values())
@@ -156,7 +161,7 @@ class GUI:
 
 
 class LiveClient:
-    def __init__(self, viewer, relay):
+    def __init__(self, viewer, relay, widgets):
         self._viewer = viewer
         self._relay = relay
         img = self._relay.get("img")
@@ -164,9 +169,10 @@ class LiveClient:
         self._timer = QTimer()
         self._timer.timeout.connect(update_img)
         self._timer.start(1000 // 60)
-        self._viewer.window.add_dock_widget(
-            widgets.ValveController(self._relay), name="Valve Controls", tabify=False
-        )
+        for name, widget in widgets.items():
+            self._viewer.window.add_dock_widget(
+                widget(self._relay), name=name, tabify=False
+            )
 
     def update_img(self):
         img = self._relay.get("img")
@@ -174,7 +180,8 @@ class LiveClient:
 
 
 def live(ctrl):
-    gui = GUI(LiveClient)
+    widgets, widget_routes = init_widgets(ctrl)
+    gui = GUI(LiveClient, widgets=widgets)
 
     img = ctrl.snap()
 
@@ -184,17 +191,9 @@ def live(ctrl):
             img[:] = ctrl.snap()
             yield
 
-    @gui.route("img")
-    def get_img():
-        return img
-
-    @gui.route("valves")
-    def get_valves():
-        return ctrl.valves.valves
-
-    @gui.route("set_valve")
-    def set_valve(idx, value):
-        ctrl.valves[idx] = value
+    gui.route("img", lambda: img)
+    for name, func in widget_routes.items():
+        gui.route(name, func)
 
     gui.start()
 
@@ -202,7 +201,7 @@ def live(ctrl):
 
 
 class AcqClient:
-    def __init__(self, viewer, relay, file):
+    def __init__(self, viewer, relay, file, widgets):
         self._viewer = viewer
         self._relay = relay
         self._file = file
@@ -216,13 +215,14 @@ class AcqClient:
         self._live_timer.timeout.connect(self.update_img)
         self._live_timer.start(1000 // 60)
         self._viewer.window.add_dock_widget(
-            widgets.BoundarySelector(self._relay, self.acq_step),
+            BoundarySelector(self._relay, self.acq_step),
             name="Acquisition Boundaries",
             tabify=False,
         )
-        self._viewer.window.add_dock_widget(
-            widgets.ValveController(self._relay), name="Valve Controls", tabify=False
-        )
+        for name, widget in widgets.items():
+            self._viewer.window.add_dock_widget(
+                widget(self._relay), name=name, tabify=False
+            )
 
     def acq_step(self, top_left, bot_right):
         self._live_timer.disconnect()
@@ -288,11 +288,13 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
         acq_event.set()
         get_pos = False
 
+    widgets, widget_routes = init_widgets(ctrl)
     gui = GUI(
         lambda v, r: AcqClient(v, r, file=file),
         file,
         ctrl.snap(),
         dict(overlap=overlap, acq_func=dill.source.getsource(acq_func)),
+        widgets=widgets
     )
 
     @gui.worker
@@ -309,14 +311,6 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
                     store, group=name, compute=False, mode="a"
                 )
             yield
-
-    @gui.route("valves")
-    def get_valves():
-        return ctrl.valves.valves
-
-    @gui.route("set_valve")
-    def set_valve(idx, value):
-        ctrl.valves[idx] = value
 
     @gui.route("acq")
     def start_acq(top_left, bot_right):
@@ -338,17 +332,11 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
         pos[1] = ys
         acq_event.set()
 
-    @gui.route("arrays")
-    def get_arrays():
-        return set(gui.arrays.keys())
-
-    @gui.route("img")
-    def get_img():
-        return tile
-
-    @gui.route("xy")
-    def get_xy():
-        return ctrl.xy
+    gui.route("img", lambda: tile)
+    gui.route("xy", lambda: ctrl.xy)
+    gui.route("arrays", lambda: set(gui.arrays.keys()))
+    for name, func in widget_routes:
+        gui.route(name, func)
 
     gui.start()
     return gui

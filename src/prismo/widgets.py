@@ -10,6 +10,22 @@ from qtpy.QtWidgets import (
 )
 from qtpy.QtGui import QDoubleValidator
 
+from . import devices
+
+
+def init_widgets(ctrl):
+    widgets = {}
+    routes = {}
+
+    # TODO: Handle duplicates.
+    for device in ctrl.devices:
+        if isinstance(device, devices.Valves):
+            widget["Valve Controller"] = ValveController
+            server = ValveControllerServer(device)
+            routes = {**routes, **server.routes()}
+
+    return widgets, routes
+
 
 class BoundarySelector(QWidget):
     def __init__(self, relay, next_step):
@@ -126,3 +142,17 @@ class ValveController(QWidget):
              "margin: 0.5px;"
              "border-radius: 0px;"
         )
+
+
+class ValveControllerServer:
+    def __init__(self, valves):
+        self._valves = valves
+
+    def routes(self):
+        return {"valves": self.get_valves, "set_valve": self.set_valve}
+
+    def get_valves(self):
+        return self._valves.valves
+
+    def set_valve(self, idx, value):
+        self._valves[idx] = value

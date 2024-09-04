@@ -137,10 +137,7 @@ def load(config, path=None):
 
 
 class Control:
-    def __init__(self, core, devices=None):
-        if devices is None:
-            devices = {}
-
+    def __init__(self, core, devices):
         # We can't directly set self.devices = devices since our overriden method
         # depends on self.devices being set.
         super(Control, self).__setattr__("devices", devices)
