@@ -93,21 +93,21 @@ void set_amps(unsigned int device_id, double amps) {
 }
 
 
-void set_output(unsigned int device_id, bool enable) {
+void toggle(unsigned int device_id, bool on) {
     const std::lock_guard<std::mutex> lock(mutex);
-    int err = TLUP_switchLedOutput(device_id, enable);
+    int err = TLUP_switchLedOutput(device_id, on);
     if (err != VI_SUCCESS) {
          throw std::runtime_error("Could not set device output. Error code: " + std::to_string(err));
     }
 }
 
 
-PYBIND11_MODULE(thor_light, m) {
+PYBIND11_MODULE(thor_lib, m) {
     m.def("devices", &devices);
     m.def("init", &init_device);
     m.def("close", &close_device);
     m.def("info", &info);
     m.def("get_amps", &get_amps);
     m.def("set_amps", &set_amps);
-    m.def("set_output", &set_output);
+    m.def("toggle", &toggle);
 }
