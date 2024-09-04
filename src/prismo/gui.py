@@ -172,6 +172,9 @@ class LiveClient:
         img = self._relay.get("img")
         self._viewer.add_image(img, name="live")
         self._relay.poll(self.update_img, 1000 // 60, "img")
+        self._viewer.window.add_dock_widget(
+            widgets.ValveController(self._relay), name="Valve Controls", tabify=False
+        )
 
     def update_img(self, img):
         self._viewer.layers[0].data = img
@@ -191,6 +194,14 @@ def live(ctrl):
     @gui.route("img")
     def get_img():
         return img
+
+    @gui.route("valves")
+    def get_valves():
+        return ctrl.valves.valves
+
+    @gui.route("set_valve")
+    def set_valve(idx, value):
+        ctrl.valves[idx] = value
 
     gui.start()
 
