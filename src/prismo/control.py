@@ -19,10 +19,6 @@ def load(config, path=None):
     os.environ["PATH"] += os.pathsep + path
     core.setDeviceAdapterSearchPaths([path])
 
-    def set_props(name, props):
-        for k, v in props.items():
-            core.setProperty(name, k, v)
-
     devices = []
     ports = {}
     port_defaults = {
@@ -67,7 +63,8 @@ def load(config, path=None):
         core.loadDevice(port, "SerialManager", port)
         if port in config:
             params.update(config[port])
-        set_props(port, params)
+        for k, v in params.items():
+            core.setProperty(port, k, v)
         core.initializeDevice(port)
 
     for name, params in config.items():
