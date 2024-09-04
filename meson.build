@@ -9,7 +9,12 @@ project(
 )
 
 py = import('python').find_installation(pure: false)
-pybind11_dep = dependency('pybind11')
 
-subdir('src/prismo/devices')
+cpp_dep = dependency('cpp', required: false)
+if cpp_dep.found()
+    # Only try to build the devices subdir if we have a c++ compiler.
+    pybind11_dep = dependency('pybind11')
+    subdir('src/prismo/devices')
+endif
+
 install_subdir('src/prismo', install_dir: py.get_install_dir() / 'prismo', strip_directory: true)
