@@ -127,17 +127,9 @@ def load(config, path=None):
             devices.append(dev.microfluidic.Valves(name, **params))
             valves = devices[-1]
         elif device == "sola_light":
-            core.loadDevice(name, "LumencorSpectra", "Spectra")
-            core.setProperty(name, "SetLE_Type", "Sola")
-            core.setProperty(name, "Port", params["port"])
-            core.initializeDevice(name)
-            devices.append(SolaLight(name, core))
+            devices.append(dev.lumencor.Light(name, core, version="sola", **params))
         elif device == "spectra_light":
-            core.loadDevice(name, "LumencorSpectra", "Spectra")
-            core.setProperty(name, "SetLE_Type", "Spectra")
-            core.setProperty(name, "Port", params["port"])
-            core.initializeDevice(name)
-            devices.append(SolaLight(name, core))
+            devices.append(dev.lumencor.Light(name, core, version="spectra", **params))
         elif device == "ti_filter1":
             core.loadDevice(name, "NikonTI", "TIFilterBlock1")
             core.setParentLabel(name, "ti_scope")
@@ -208,10 +200,6 @@ def load(config, path=None):
             devices.append(Camera(name, core))
         else:
             raise ValueError(f"Device {device} is not recognized.")
-
-        for k, v in params.items():
-            if k not in ["port", "device", "states", "valves", "ip", "zooms"]:
-                core.setProperty(name, k, v)
 
     return Control(core, devices=devices)
 
@@ -491,20 +479,3 @@ class Shutter:
     @state.setter
     def state(self, new_state):
         self.open = new_state == "open"
-
-
-class SolaLight:
-    def __init__(self, name, core):
-        self.name = name
-        self._core = core
-
-    def wait(self):
-        self._core.waitForDevice(self.name)
-
-    @property
-    def state(self):
-        return int(self._core.getProperty(self.name, "White_Level"))
-
-    @state.setter
-    def state(self, new_state):
-        self._core.setProperty(self.name, "White_Level", new_state)
