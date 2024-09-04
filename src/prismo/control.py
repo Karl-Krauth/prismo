@@ -4,13 +4,11 @@ import os
 
 import numpy as np
 import pymmcore
-import pymodbus.client
 
 import prismo.devices as dev
 
 
 def load(config, path=None):
-    client = None
     core = pymmcore.CMMCore()
     if path is None:
         if os.name == "nt":
@@ -125,6 +123,9 @@ def load(config, path=None):
             devices.append(dev.microfluidic.Mux(name, valves, **params))
         elif device == "microfluidic_minichip":
             devices.append(MiniChip(name, valves, **params))
+        elif device == "microfluidic_valves":
+            devices.append(dev.microfluidic.Valves(name, **params))
+            valves = devices[-1]
         elif device == "sola_light":
             core.loadDevice(name, "LumencorSpectra", "Spectra")
             core.setProperty(name, "SetLE_Type", "Sola")
@@ -201,12 +202,6 @@ def load(config, path=None):
             core.setParentLabel(name, "ti2_scope")
             core.initializeDevice(name)
             devices.append(Objective(name, core, params.get("zooms"), params.get("states")))
-        elif device == "wago_valves":
-            if client is None:
-                client = pymodbus.client.ModbusTcpClient(params["ip"])
-                client.connect()
-            devices.append(Valves(name, client, params.get("valves")))
-            valves = devices[-1]
         elif device == "zyla_camera":
             core.loadDevice(name, "AndorSDK3", "Andor sCMOS Camera")
             core.initializeDevice(name)
@@ -513,33 +508,3 @@ class SolaLight:
     @state.setter
     def state(self, new_state):
         self._core.setProperty(self.name, "White_Level", new_state)
-
-
-class Valves:
-    def __init__(self, name, client, valves=None):
-        self.name = name
-        if valves is None:
-            valves = [i for i in range(48)]
-        self._valves = valves
-        self._client = client
-
-    @property
-    def valves(self):
-        return {v: self[v] for v in self._valves}
-
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            addr = key
-        else:
-            addr = self._valves.index(key)
-        addr += 512
-        return 0 if self._client.read_coils(addr, 1).bits[0] else 1
-
-    def __setitem__(self, key, value):
-        if isinstance(key, int):
-            addr = key
-        else:
-            addr = self._valves.index(key)
-        self._client.write_coil(addr, (value == "off") or (value == 0))
-
-

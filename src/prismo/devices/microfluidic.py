@@ -1,15 +1,33 @@
+import pymodbus.client
+
+
 class Valves:
-    def __init__(self, name: str, valves=None):
+    def __init__(self, name, ip, valves=None):
         self.name = name
         if valves is None:
             valves = [i for i in range(48)]
-        self.valves = {k: 1 for k in valves}
+        self._valves = valves
+        self._client = pymodbus.client.ModbusTcpClient(ip)
+        self._client.connect()
+
+    @property
+    def valves(self):
+        return {v: self[v] for v in self._valves}
 
     def __getitem__(self, key):
-        return self.valves[key]
+        if isinstance(key, int):
+            addr = key
+        else:
+            addr = self._valves.index(key)
+        addr += 512
+        return 0 if self._client.read_coils(addr, 1).bits[0] else 1
 
     def __setitem__(self, key, value):
-        self.valves[key] = int((value != "off") and (value != 0))
+        if isinstance(key, int):
+            addr = key
+        else:
+            addr = self._valves.index(key)
+        self._client.write_coil(addr, (value == "off") or (value == 0))
 
 
 class Mux:
