@@ -73,22 +73,8 @@ def load(config, path=None):
     for name, params in config.items():
         if name in ports:
             continue
-        device = params["device"]
-        if (
-            device
-            in (
-                "ti2_focus",
-                "ti2_filter1",
-                "ti2_filter2",
-                "ti2_shutter1",
-                "ti2_shutter2",
-                "ti2_lightpath",
-                "ti2_objective",
-            )
-            and "ti2_scope" not in core.getLoadedDevices()
-        ):
-            core.loadDevice("ti2_scope", "NikonTi2", "Ti2-E__0")
-            core.initializeDevice("ti2_scope")
+
+        device = params.pop("device")
 
         if device == "asi_stage":
             devices.append(dev.asi.Stage(name, core, params["port"]))
@@ -104,11 +90,11 @@ def load(config, path=None):
             devices.append(dev.demo.Valves(name, **params))
             valves = devices[-1]
         elif device == "lambda_filter1":
-            devices.append(dev.lambda.Filter(name, core, wheel="A", **params))
+            devices.append(dev.lambda.Filter(name, core, filter="A", **params))
         elif device == "lambda_filter2":
-            devices.append(dev.lambda.Filter(name, core, wheel="B", **params))
+            devices.append(dev.lambda.Filter(name, core, filter="B", **params))
         elif device == "lambda_filter3":
-            devices.append(dev.lambda.Filter(name, core, wheel="C", **params))
+            devices.append(dev.lambda.Filter(name, core, filter="C", **params))
         elif device == "lambda_shutter1":
             devices.append(dev.lambda.Shutter(name, core, shutter="A", **params))
         elif device == "lambda_shutter2":
@@ -135,42 +121,19 @@ def load(config, path=None):
         elif device == "ti_objective":
             devices.append(dev.ti.Objective(name, core, **params))
         elif device == "ti2_filter1":
-            core.loadDevice(name, "NikonTi2", "FilterTurret1")
-            core.setParentLabel(name, "ti2_scope")
-            core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states")))
+            devices.append(dev.ti2.Filter(name, core, filter=1, **params))
         elif device == "ti2_filter2":
-            core.loadDevice(name, "NikonTi2", "FilterTurret2")
-            core.setParentLabel(name, "ti2_scope")
-            core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states")))
+            devices.append(dev.ti2.Filter(name, core, filter=2, **params))
         elif device == "ti2_shutter1":
-            core.loadDevice(name, "NikonTi2", "Turret1Shutter")
-            core.setParentLabel(name, "ti2_scope")
-            core.initializeDevice(name)
-            devices.append(Shutter(name, core))
+            devices.append(dev.ti2.Shutter(name, core, shutter=1))
         elif device == "ti2_shutter2":
-            core.loadDevice(name, "NikonTi2", "Turret2Shutter")
-            core.setParentLabel(name, "ti2_scope")
-            core.initializeDevice(name)
-            devices.append(Shutter(name, core))
+            devices.append(dev.ti2.Shutter(name, core, shutter=2))
         elif device == "ti2_lightpath":
-            core.loadDevice(name, "NikonTi2", "LightPath")
-            core.setParentLabel(name, "ti_scope")
-            core.initializeDevice(name)
-            devices.append(
-                Selector(name, core, params.get("states", ["eye", "l100", "r100", "l80"]))
-            )
+            devices.append(dev.ti2.LightPath(name, core, **params))
         elif device == "ti2_focus":
-            core.loadDevice(name, "NikonTi2", "ZDrive")
-            core.setParentLabel(name, "ti2_scope")
-            core.initializeDevice(name)
-            devices.append(Focus(name, core))
+            devices.append(dev.ti2.Focus(name, core))
         elif device == "ti2_objective":
-            core.loadDevice(name, "NikonTi2", "Nosepiece")
-            core.setParentLabel(name, "ti2_scope")
-            core.initializeDevice(name)
-            devices.append(Objective(name, core, params.get("zooms"), params.get("states")))
+            devices.append(dev.ti2.Objective(name, core, **params))
         elif device == "zyla_camera":
             core.loadDevice(name, "AndorSDK3", "Andor sCMOS Camera")
             core.initializeDevice(name)
@@ -356,103 +319,3 @@ class Waits(Protocol):
 @runtime_checkable
 class Zooms(Protocol):
     zoom: float
-
-
-class Selector:
-    def __init__(self, name, core, states=None):
-        self.name = name
-        self.states = states
-        self._core = core
-
-        n_states = self._core.getNumberOfStates(name)
-        if states is None:
-            self.states = [i for i in range(n_states)]
-        else:
-            if len(self.states) < n_states:
-                raise ValueError(
-                    f"{name} requires {n_states} states (not {len(self.states)}) to be specified."
-                )
-            for i, state in enumerate(self.states):
-                self._core.defineStateLabel(name, i, state)
-
-    def wait(self):
-        self._core.waitForDevice(self.name)
-
-    @property
-    def state(self):
-        if isinstance(self.states[0], int):
-            return self._core.getState(self.name)
-        else:
-            return self._core.getStateLabel(self.name)
-
-    @state.setter
-    def state(self, new_state):
-        if isinstance(new_state, int):
-            self._core.setState(self.name, new_state)
-        else:
-            self._core.setStateLabel(self.name, new_state)
-
-
-class Objective:
-    def __init__(self, name, core, zooms, states=None):
-        self.name = name
-        self.states = states
-        self._core = core
-
-        n_states = self._core.getNumberOfStates(name)
-        if states is None:
-            self.states = [i for i in range(n_states)]
-        else:
-            if len(self.states) < n_states:
-                raise ValueError(
-                    f"{name} requires {n_states} states (not {len(self.states)}) to be specified."
-                )
-            for i, state in enumerate(self.states):
-                self._core.defineStateLabel(name, i, state)
-        self.zooms = {state: zoom for state, zoom in zip(self.states, zooms)}
-
-    def wait(self):
-        self._core.waitForDevice(self.name)
-
-    @property
-    def state(self):
-        if isinstance(self.states[0], int):
-            return self._core.getState(self.name)
-        else:
-            return self._core.getStateLabel(self.name)
-
-    @state.setter
-    def state(self, new_state):
-        if isinstance(new_state, int):
-            self._core.setState(self.name, new_state)
-        else:
-            self._core.setStateLabel(self.name, new_state)
-
-    @property
-    def zoom(self):
-        return self.zooms[self.state]
-
-
-class Shutter:
-    def __init__(self, name, core):
-        self.name = name
-        self._core = core
-
-    def wait(self):
-        self._core.waitForDevice(self.name)
-
-    @property
-    def open(self):
-        return self._core.getShutterOpen(self.name)
-
-    @open.setter
-    def open(self, new_state):
-        self._core.setShutterOpen(self.name, new_state)
-
-    @property
-    def state(self):
-        return "open" if self.open else "closed"
-
-    @state.setter
-    def state(self, new_state):
-        self.open = new_state == "open"
