@@ -143,6 +143,8 @@ class Control:
         super(Control, self).__setattr__("devices", devices)
 
         self._core = core
+        self._core.setTimeoutMs(100000)
+
         self._camera = None
         for device in self.devices:
             if isinstance(device, dev.Camera):

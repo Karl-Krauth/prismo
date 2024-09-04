@@ -108,7 +108,7 @@ class GUI:
             # route got called as a standard method.
             self._routes[name] = func
 
-    def new_array(self, name, **dims):
+    def array(self, name, **dims):
         shape = tuple(x if isinstance(x, int) else len(x) for x in dims.values())
         xp = xr.DataArray(
             data=da.zeros(
@@ -291,11 +291,10 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
 
     widgets, widget_routes = init_widgets(ctrl)
     gui = GUI(
-        lambda v, r: AcqClient(v, r, file=file),
+        lambda v, r: AcqClient(v, r, file=file, widgets=widgets),
         file,
         ctrl.snap(),
         dict(overlap=overlap, acq_func=dill.source.getsource(acq_func)),
-        widgets=widgets
     )
 
     @gui.worker
@@ -336,7 +335,7 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
     gui.route("img", lambda: tile)
     gui.route("xy", lambda: ctrl.xy)
     gui.route("arrays", lambda: set(gui.arrays.keys()))
-    for name, func in widget_routes:
+    for name, func in widget_routes.items():
         gui.route(name, func)
 
     gui.start()
