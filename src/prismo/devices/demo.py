@@ -27,4 +27,87 @@ class Camera:
         return 1.0
 
 
+class Stage:
+    def __init__(self, name: str, core):
+        self.name = name
+        self._core = core
+        core.loadDevice(name, "DemoCamera", "DXYStage")
+        core.initializeDevice(name)
 
+    def wait(self):
+        self._core.waitForDevice(self.name)
+
+    @property
+    def x(self) -> float:
+        return self._core.getXPosition(self.name)
+
+    @x.setter
+    def x(self, new_x: float):
+        self._core.setXYPosition(self.name, new_x, self.y)
+
+    @property
+    def y(self) -> float:
+        return self._core.getYPosition(self.name)
+
+    @y.setter
+    def y(self, new_y: float):
+        self._core.setXYPosition(self.name, self.x, new_y)
+
+    @property
+    def xy(self) -> tuple[float, float]:
+        return np.array(self._core.getXYPosition(self.name))
+
+    @xy.setter
+    def xy(self, new_xy: tuple[float, float]):
+        self._core.setXYPosition(self.name, new_xy[0], new_xy[1])
+
+
+class Filter:
+    def __init__(self, name: str, core, states=None):
+        self.name = name
+        self.states = states
+        self._core = core
+        core.loadDevice(name, "DemoCamera", "DWheel")
+        core.initializeDevice(name)
+
+        n_states = self._core.getNumberOfStates(name)
+        if states is None:
+            self.states = [i for i in range(n_states)]
+        else:
+            if len(self.states) < n_states:
+                raise ValueError(
+                    f"{name} requires {n_states} states (not {len(self.states)}) to be specified."
+                )
+            for i, state in enumerate(self.states):
+                self._core.defineStateLabel(name, i, state)
+
+    def wait(self):
+        self._core.waitForDevice(self.name)
+
+    @property
+    def state(self) -> int | str:
+        if isinstance(self.states[0], int):
+            return self._core.getState(self.name)
+        else:
+            return self._core.getStateLabel(self.name)
+
+    @state.setter
+    def state(self, new_state: int | str):
+        if isinstance(new_state, int):
+            self._core.setState(self.name, new_state)
+        else:
+            self._core.setStateLabel(self.name, new_state)
+
+
+class Valves:
+    def __init__(self, name, valves=None):
+        self.name = name
+        if valves is None:
+            valves = [i for i in range(48)]
+        self.valves = {k: 1 for k in valves}
+
+    def __getitem__(self, key):
+        return self.valves[key]
+
+    def __setitem__(self, key, value):
+        self.valves[key] = int((value != "off") and (value != 0))

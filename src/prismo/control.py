@@ -105,15 +105,11 @@ def load(config, path=None):
         elif device == "demo_camera":
             devices.append(dev.demo.Camera(name, core))
         elif device == "demo_filter":
-            core.loadDevice(name, "DemoCamera", "DWheel")
-            core.initializeDevice(name)
-            devices.append(Selector(name, core, states=params.get("states")))
+            devices.append(dev.demo.Filter(name, core, **params))
         elif device == "demo_stage":
-            core.loadDevice(name, "DemoCamera", "DXYStage")
-            core.initializeDevice(name)
-            devices.append(Stage(name, core))
+            devices.append(dev.demo.Stage(name, core))
         elif device == "demo_valves":
-            devices.append(DemoValves(name, params.get("valves")))
+            devices.append(dev.demo.Valves(name, **params))
             valves = devices[-1]
         elif device == "lambda_filter1":
             core.loadDevice(name, "SutterLambda", "Wheel-A")
@@ -534,20 +530,6 @@ class SolaLight:
     @state.setter
     def state(self, new_state):
         self._core.setProperty(self.name, "White_Level", new_state)
-
-
-class DemoValves:
-    def __init__(self, name, valves=None):
-        self.name = name
-        if valves is None:
-            valves = [i for i in range(48)]
-        self.valves = {k: 1 for k in valves}
-
-    def __getitem__(self, key):
-        return self.valves[key]
-
-    def __setitem__(self, key, value):
-        self.valves[key] = int((value != "off") and (value != 0))
 
 
 class Valves:
