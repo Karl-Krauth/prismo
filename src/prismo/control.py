@@ -103,9 +103,7 @@ def load(config, path=None):
         elif device == "asi_zstage":
             devices.append(dev.asi.Focus(name, core, params["port"]))
         elif device == "demo_camera":
-            core.loadDevice(name, "DemoCamera", "DCam")
-            core.initializeDevice(name)
-            devices.append(Camera(name, core))
+            devices.append(dev.demo.Camera(name, core))
         elif device == "demo_filter":
             core.loadDevice(name, "DemoCamera", "DWheel")
             core.initializeDevice(name)
@@ -388,40 +386,6 @@ class Control:
 
     def __del__(self):
         self._core.reset()
-
-
-class Camera:
-    def __init__(self, name, core):
-        self.name = name
-        self._core = core
-
-    def snap(self) -> np.ndarray:
-        self._core.setCameraDevice(self.name)
-        self._core.snapImage()
-        return np.flipud(self._core.getImage())
-
-    def wait(self):
-        self._core.waitForDevice(self.name)
-
-    @property
-    def binning(self):
-        return int(self._core.getProperty(self.name, "Binning")[-1])
-
-    @binning.setter
-    def binning(self, new_binning):
-        self._core.setProperty(self.name, "Binning", f"{new_binning}x{new_binning}")
-
-    @property
-    def exposure(self):
-        return self._core.getExposure(self.name)
-
-    @exposure.setter
-    def exposure(self, new_exposure):
-        self._core.setExposure(self.name, new_exposure)
-
-    @property
-    def px_len(self):
-        return self.binning * 6.5
 
 
 @runtime_checkable
