@@ -75,12 +75,6 @@ def load(config, path=None):
             continue
         device = params["device"]
         if (
-            device in ("ti_focus", "ti_filter1", "ti_filter2", "ti_lightpath", "ti_objective")
-            and "ti_scope" not in core.getLoadedDevices()
-        ):
-            core.loadDevice("ti_scope", "NikonTI", "TIScope")
-            core.initializeDevice("ti_scope")
-        elif (
             device
             in (
                 "ti2_focus",
@@ -131,32 +125,15 @@ def load(config, path=None):
         elif device == "spectra_light":
             devices.append(dev.lumencor.Light(name, core, version="spectra", **params))
         elif device == "ti_filter1":
-            core.loadDevice(name, "NikonTI", "TIFilterBlock1")
-            core.setParentLabel(name, "ti_scope")
-            core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states")))
+            devices.append(dev.ti.Filter(name, core, filter=1, **params))
         elif device == "ti_filter2":
-            core.loadDevice(name, "NikonTI", "TIFilterBlock2")
-            core.setParentLabel(name, "ti_scope")
-            core.initializeDevice(name)
-            devices.append(Selector(name, core, params.get("states")))
+            devices.append(dev.ti.Filter(name, core, filter=2, **params))
         elif device == "ti_lightpath":
-            core.loadDevice(name, "NikonTI", "TILightPath")
-            core.setParentLabel(name, "ti_scope")
-            core.initializeDevice(name)
-            devices.append(
-                Selector(name, core, params.get("states", ["eye", "l100", "r100", "l80"]))
-            )
+            devices.append(dev.ti.LightPath(name, core, **params))
         elif device == "ti_focus":
-            core.loadDevice(name, "NikonTI", "TIZDrive")
-            core.setParentLabel(name, "ti_scope")
-            core.initializeDevice(name)
-            devices.append(Focus(name, core))
+            devices.append(dev.ti.Focus(name, core))
         elif device == "ti_objective":
-            core.loadDevice(name, "NikonTI", "TINosePiece")
-            core.setParentLabel(name, "ti_scope")
-            core.initializeDevice(name)
-            devices.append(Objective(name, core, params.get("zooms"), params.get("states")))
+            devices.append(dev.ti.Objective(name, core, **params))
         elif device == "ti2_filter1":
             core.loadDevice(name, "NikonTi2", "FilterTurret1")
             core.setParentLabel(name, "ti2_scope")
