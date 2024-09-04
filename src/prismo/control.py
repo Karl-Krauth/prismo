@@ -135,9 +135,7 @@ def load(config, path=None):
         elif device == "ti2_objective":
             devices.append(dev.ti2.Objective(name, core, **params))
         elif device == "zyla_camera":
-            core.loadDevice(name, "AndorSDK3", "Andor sCMOS Camera")
-            core.initializeDevice(name)
-            devices.append(Camera(name, core))
+            devices.append(dev.zyla.Camera(name, core, **params))
         else:
             raise ValueError(f"Device {device} is not recognized.")
 
