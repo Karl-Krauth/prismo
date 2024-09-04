@@ -87,15 +87,15 @@ def load(config, path=None):
             devices.append(dev.demo.Valves(name, **params))
             valves = devices[-1]
         elif device == "lambda_filter1":
-            devices.append(dev.lambda.Filter(name, core, filter="A", **params))
+            devices.append(dev.sutter.Filter(name, core, filter="A", **params))
         elif device == "lambda_filter2":
-            devices.append(dev.lambda.Filter(name, core, filter="B", **params))
+            devices.append(dev.sutter.Filter(name, core, filter="B", **params))
         elif device == "lambda_filter3":
-            devices.append(dev.lambda.Filter(name, core, filter="C", **params))
+            devices.append(dev.sutter.Filter(name, core, filter="C", **params))
         elif device == "lambda_shutter1":
-            devices.append(dev.lambda.Shutter(name, core, shutter="A", **params))
+            devices.append(dev.sutter.Shutter(name, core, shutter="A", **params))
         elif device == "lambda_shutter2":
-            devices.append(dev.lambda.Shutter(name, core, shutter="B", **params))
+            devices.append(dev.sutter.Shutter(name, core, shutter="B", **params))
         elif device == "microfluidic_mux":
             devices.append(dev.microfluidic.Mux(name, valves, **params))
         elif device == "microfluidic_minichip":
@@ -151,25 +151,25 @@ class Control:
         self._core = core
         self._camera = None
         for device in self.devices:
-            if isinstance(device, Snaps):
+            if isinstance(device, dev.Camera):
                 self._camera = device
                 break
 
         self._stage = None
         for device in self.devices:
-            if isinstance(device, Moves):
+            if isinstance(device, dev.Stage):
                 self._stage = device
                 break
 
         self._focus = None
         for device in self.devices:
-            if isinstance(device, Focuses):
+            if isinstance(device, dev.Focus):
                 self._focus = device
                 break
 
     def wait(self):
         for device in self.devices:
-            if isinstance(device, Waits):
+            if isinstance(device, dev.Wait):
                 device.wait()
 
     @property
@@ -180,14 +180,6 @@ class Control:
     def camera(self, new_camera):
         self._camera = self.devices[new_camera]
 
-    @property
-    def binning(self):
-        return self._camera.binning
-
-    @binning.setter
-    def binning(self, new_binning):
-        self._camera.binning = new_binning
-
     def snap(self):
         return self._camera.snap()
 
@@ -195,7 +187,7 @@ class Control:
     def px_len(self):
         zoom_total = 1
         for device in self.devices:
-            if isinstance(device, Zooms):
+            if isinstance(device, dev.Zoom):
                 zoom_total *= device.zoom
         return self._camera.px_len / zoom_total
 
@@ -258,7 +250,7 @@ class Control:
     def __getattr__(self, name):
         for device in self.devices:
             if name == device.name:
-                if isinstance(device, Stateful):
+                if isinstance(device, dev.State):
                     return device.state
                 else:
                     return device
@@ -267,7 +259,7 @@ class Control:
 
     def __setattr__(self, name, value):
         for device in self.devices:
-            if name == device.name and isinstance(device, Stateful):
+            if name == device.name and isinstance(device, dev.State):
                 device.state = value
                 return
         super(Control, self).__setattr__(name, value)
@@ -283,34 +275,3 @@ class Control:
 
     def __del__(self):
         self._core.reset()
-
-
-@runtime_checkable
-class Stateful(Protocol):
-    state: str | int | float
-
-
-@runtime_checkable
-class Snaps(Protocol):
-    def snap(self) -> np.ndarray: ...
-
-
-@runtime_checkable
-class Moves(Protocol):
-    x: float
-    y: float
-
-
-@runtime_checkable
-class Focuses(Protocol):
-    z: float
-
-
-@runtime_checkable
-class Waits(Protocol):
-    def wait() -> None: ...
-
-
-@runtime_checkable
-class Zooms(Protocol):
-    zoom: float
