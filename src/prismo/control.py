@@ -112,30 +112,15 @@ def load(config, path=None):
             devices.append(dev.demo.Valves(name, **params))
             valves = devices[-1]
         elif device == "lambda_filter1":
-            core.loadDevice(name, "SutterLambda", "Wheel-A")
-            core.setProperty(name, "Port", params["port"])
-            core.initializeDevice(name)
-            devices.append(Selector(name, core, states=params.get("states")))
+            devices.append(dev.lambda.Filter(name, core, wheel="A", **params))
         elif device == "lambda_filter2":
-            core.loadDevice(name, "SutterLambda", "Wheel-B")
-            core.setProperty(name, "Port", params["port"])
-            core.initializeDevice(name)
-            devices.append(Selector(name, core, states=params.get("states")))
+            devices.append(dev.lambda.Filter(name, core, wheel="B", **params))
         elif device == "lambda_filter3":
-            core.loadDevice(name, "SutterLambda", "Wheel-C")
-            core.setProperty(name, "Port", params["port"])
-            core.initializeDevice(name)
-            devices.append(Selector(name, core, states=params.get("states")))
+            devices.append(dev.lambda.Filter(name, core, wheel="C", **params))
         elif device == "lambda_shutter1":
-            core.loadDevice(name, "SutterLambda", "Shutter-A")
-            core.setProperty(name, "Port", params["port"])
-            core.initializeDevice(name)
-            devices.append(Shutter(name, core))
+            devices.append(dev.lambda.Shutter(name, core, shutter="A", **params))
         elif device == "lambda_shutter2":
-            core.loadDevice(name, "SutterLambda", "Shutter-B")
-            core.setProperty(name, "Port", params["port"])
-            core.initializeDevice(name)
-            devices.append(Shutter(name, core))
+            devices.append(dev.lambda.Shutter(name, core, shutter="B", **params))
         elif device == "mux":
             devices.append(Mux(name, params["mapping"], valves))
             continue
