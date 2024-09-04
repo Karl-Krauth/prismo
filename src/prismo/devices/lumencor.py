@@ -17,4 +17,3 @@ class Light:
     @state.setter
     def state(self, new_state):
         self._core.setProperty(self.name, "White_Level", new_state)
-
