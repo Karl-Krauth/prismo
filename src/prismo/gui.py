@@ -1,31 +1,21 @@
+import threading
+
 from qtpy.QtCore import QTimer
-import dill
 import dask.array as da
-import napari
+import dill
 import multiprocess
+import napari
 import numcodecs
 import numpy as np
-import threading
 import xarray as xr
 import zarr as zr
 
-from prismo import widgets
+from . import widgets
 
 
 class Relay:
     def __init__(self, pipe):
         self._pipe = pipe
-        self._timers = []
-
-    def poll(self, func, timeout, route, *args, **kwargs):
-        def do_poll():
-            self._pipe.send([route, args, kwargs])
-            func(self._pipe.recv())
-
-        timer = QTimer()
-        timer.timeout.connect(do_poll)
-        timer.start(timeout)
-        self._timers.append(timer)
 
     def get(self, route, *args, **kwargs):
         self._pipe.send([route, args, kwargs])
@@ -171,12 +161,15 @@ class LiveClient:
         self._relay = relay
         img = self._relay.get("img")
         self._viewer.add_image(img, name="live")
-        self._relay.poll(self.update_img, 1000 // 60, "img")
+        self._timer = QTimer()
+        self._timer.timeout.connect(update_img)
+        self._timer.start(1000 // 60)
         self._viewer.window.add_dock_widget(
             widgets.ValveController(self._relay), name="Valve Controls", tabify=False
         )
 
-    def update_img(self, img):
+    def update_img(self):
+        img = self._relay.get("img")
         self._viewer.layers[0].data = img
 
 
@@ -268,6 +261,7 @@ class AcqClient:
             layers = layers if isinstance(layers, list) else [layers]
 
             for layer in layers:
+                # Turn on auto-contrast for all new layers.
                 self._viewer.window._qt_viewer._controls.widgets[
                     layer
                 ].autoScaleBar._auto_btn.click()
