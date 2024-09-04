@@ -1,1 +1,1 @@
-subdir('thor_light')
+subdir('thor')
