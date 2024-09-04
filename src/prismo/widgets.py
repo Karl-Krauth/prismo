@@ -20,7 +20,7 @@ def init_widgets(ctrl):
     # TODO: Handle duplicates.
     for device in ctrl.devices:
         if isinstance(device, devices.Valves):
-            widget["Valve Controller"] = ValveController
+            widgets["Valve Controller"] = ValveController
             server = ValveControllerServer(device)
             routes = {**routes, **server.routes()}
 

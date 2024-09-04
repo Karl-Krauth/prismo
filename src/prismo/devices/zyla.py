@@ -1,3 +1,6 @@
+import numpy as np
+
+
 class Camera:
     def __init__(self, name, core, rotate=0):
         self.name = name

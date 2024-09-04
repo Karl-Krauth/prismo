@@ -1,5 +1,7 @@
 from typing import runtime_checkable, Protocol
 
+import numpy as np
+
 
 @runtime_checkable
 class Camera(Protocol):

@@ -26,11 +26,12 @@ class Relay:
 
 
 class GUI:
-    def __init__(self, gui_func, file=None, tile=None, attrs=None):
+    def __init__(self, init_client, file=None, tile=None, attrs=None):
         def run_gui(pipe):
             viewer = napari.Viewer()
             relay = Relay(pipe)
-            gui_func(viewer, relay)
+            # Save the client in a variable so it doesn't get garbage collected.
+            client = init_client(viewer, relay)
             napari.run()
             pipe.close()
 
@@ -167,8 +168,8 @@ class LiveClient:
         img = self._relay.get("img")
         self._viewer.add_image(img, name="live")
         self._timer = QTimer()
-        self._timer.timeout.connect(update_img)
-        self._timer.start(1000 // 60)
+        self._timer.timeout.connect(self.update_img)
+        self._timer.start(1000 // 30)
         for name, widget in widgets.items():
             self._viewer.window.add_dock_widget(
                 widget(self._relay), name=name, tabify=False
@@ -181,7 +182,7 @@ class LiveClient:
 
 def live(ctrl):
     widgets, widget_routes = init_widgets(ctrl)
-    gui = GUI(LiveClient, widgets=widgets)
+    gui = GUI(lambda v, r: LiveClient(v, r, widgets=widgets))
 
     img = ctrl.snap()
 
@@ -213,7 +214,7 @@ class AcqClient:
         self._viewer.add_image(img, name="live")
 
         self._live_timer.timeout.connect(self.update_img)
-        self._live_timer.start(1000 // 60)
+        self._live_timer.start(1000 // 30)
         self._viewer.window.add_dock_widget(
             BoundarySelector(self._relay, self.acq_step),
             name="Acquisition Boundaries",
