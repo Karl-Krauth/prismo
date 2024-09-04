@@ -1,8 +1,5 @@
-from typing import runtime_checkable, Protocol
-import collections
 import os
 
-import numpy as np
 import pymmcore
 
 import prismo.devices as dev
@@ -74,9 +71,9 @@ def load(config, path=None):
         device = params.pop("device")
 
         if device == "asi_stage":
-            devices.append(dev.asi.Stage(name, core, params["port"]))
+            devices.append(dev.asi.Stage(name, core, **params))
         elif device == "asi_zstage":
-            devices.append(dev.asi.Focus(name, core, params["port"]))
+            devices.append(dev.asi.Focus(name, core, **params))
         elif device == "demo_camera":
             devices.append(dev.demo.Camera(name, core))
         elif device == "demo_filter":
@@ -96,10 +93,10 @@ def load(config, path=None):
             devices.append(dev.sutter.Shutter(name, core, shutter="A", **params))
         elif device == "lambda_shutter2":
             devices.append(dev.sutter.Shutter(name, core, shutter="B", **params))
-        elif device == "microfluidic_mux":
-            devices.append(dev.microfluidic.Mux(name, valves, **params))
         elif device == "microfluidic_minichip":
             devices.append(MiniChip(name, valves, **params))
+        elif device == "microfluidic_mux":
+            devices.append(dev.microfluidic.Mux(name, valves, **params))
         elif device == "microfluidic_valves":
             devices.append(dev.microfluidic.Valves(name, **params))
             valves = devices[-1]

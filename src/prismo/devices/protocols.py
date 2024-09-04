@@ -1,12 +1,15 @@
-@runtime_checkable
-class State(Protocol):
-    state: str | int | float
+from typing import runtime_checkable, Protocol
 
 
 @runtime_checkable
 class Camera(Protocol):
     exposure: float
     def snap(self) -> np.ndarray: ...
+
+
+@runtime_checkable
+class Focus(Protocol):
+    z: float
 
 
 @runtime_checkable
@@ -17,8 +20,13 @@ class Stage(Protocol):
 
 
 @runtime_checkable
-class Focus(Protocol):
-    z: float
+class State(Protocol):
+    state: str | int | float
+
+
+@runtime_checkable
+class Valves(Protocol):
+    valves: float
 
 
 @runtime_checkable
