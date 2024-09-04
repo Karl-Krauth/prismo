@@ -99,16 +99,9 @@ def load(config, path=None):
             core.initializeDevice("ti2_scope")
 
         if device == "asi_stage":
-            core.loadDevice(name, "ASIStage", "XYStage")
-            core.setProperty(name, "Port", params["port"])
-            core.initializeDevice(name)
-            devices.append(Stage(name, core))
+            devices.append(dev.asi.Stage(name, core, params["port"]))
         elif device == "asi_zstage":
-            core.loadDevice(name, "ASIStage", "ZStage")
-            core.setProperty(name, "Port", params["port"])
-            core.setProperty(name, "Axis", "Z")
-            core.initializeDevice(name)
-            devices.append(Focus(name, core))
+            devices.append(dev.asi.Focus(name, core, params["port"]))
         elif device == "demo_camera":
             core.loadDevice(name, "DemoCamera", "DCam")
             core.initializeDevice(name)
@@ -263,30 +256,30 @@ class Control:
         self._core = core
         self._camera = None
         for device in self.devices:
-            if isinstance(device, Camera):
+            if isinstance(device, Snaps):
                 self._camera = device
                 break
 
         self._stage = None
         for device in self.devices:
-            if isinstance(device, Stage):
+            if isinstance(device, Moves):
                 self._stage = device
                 break
 
         self._focus = None
         for device in self.devices:
-            if isinstance(device, Focus):
+            if isinstance(device, Focuses):
                 self._focus = device
                 break
 
     def wait(self):
         for device in self.devices:
-            if isinstance(device, Waitable):
+            if isinstance(device, Waits):
                 device.wait()
 
     @property
     def camera(self):
-        return self._camera.name if self._camera is not None else None
+        return self._camera
 
     @camera.setter
     def camera(self, new_camera):
@@ -321,7 +314,7 @@ class Control:
 
     @property
     def focus(self):
-        return self._focus.name if self._focus is not None else None
+        return self._focus
 
     @focus.setter
     def focus(self, new_focus):
@@ -337,7 +330,7 @@ class Control:
 
     @property
     def stage(self):
-        return self._stage.name if self._stage is not None else None
+        return self._stage
 
     @stage.setter
     def stage(self, new_stage):
@@ -402,7 +395,7 @@ class Camera:
         self.name = name
         self._core = core
 
-    def snap(self):
+    def snap(self) -> np.ndarray:
         self._core.setCameraDevice(self.name)
         self._core.snapImage()
         return np.flipud(self._core.getImage())
@@ -431,63 +424,29 @@ class Camera:
         return self.binning * 6.5
 
 
-class Focus:
-    def __init__(self, name, core):
-        self.name = name
-        self._core = core
-
-    def wait(self):
-        self._core.waitForDevice(self.name)
-
-    @property
-    def z(self):
-        return self._core.getPosition(self.name)
-
-    @z.setter
-    def z(self, new_z):
-        self._core.setPosition(self.name, new_z)
-
-
-class Stage:
-    def __init__(self, name, core):
-        self.name = name
-        self._core = core
-
-    def wait(self):
-        self._core.waitForDevice(self.name)
-
-    @property
-    def x(self):
-        return self._core.getXPosition(self.name)
-
-    @x.setter
-    def x(self, new_x):
-        self._core.setXYPosition(self.name, new_x, self.y)
-
-    @property
-    def y(self):
-        return self._core.getYPosition(self.name)
-
-    @y.setter
-    def y(self, new_y):
-        self._core.setXYPosition(self.name, self.x, new_y)
-
-    @property
-    def xy(self):
-        return np.array(self._core.getXYPosition(self.name))
-
-    @xy.setter
-    def xy(self, new_xy):
-        self._core.setXYPosition(self.name, new_xy[0], new_xy[1])
-
-
 @runtime_checkable
 class Stateful(Protocol):
     state: str | int | float
 
 
 @runtime_checkable
-class Waitable(Protocol):
+class Snaps(Protocol):
+    def snap(self) -> np.ndarray: ...
+
+
+@runtime_checkable
+class Moves(Protocol):
+    x: float
+    y: float
+
+
+@runtime_checkable
+class Focuses(Protocol):
+    z: float
+
+
+@runtime_checkable
+class Waits(Protocol):
     def wait() -> None: ...
 
 
@@ -753,7 +712,7 @@ class MiniChip:
         self._ones = [mapping[f"{i}_1"] for i in reversed(range(num_bits))]
         self._all_io = self._zeros + self._ones
         self._buttons = mapping["buttons"]
-        self._out = mapping["out"]
+        self._out = mapping["output"]
         self._sandwiches = mapping["sandwiches"]
         self._valves = valves
 
