@@ -248,7 +248,7 @@ class AcqClient:
         self._arrays = arrays.union(self._arrays)
         for arr in new_arrays:
             xp = xr.open_zarr(self._file, group=arr)
-            xp = xp[arr].assign_attrs(xp.attrs)
+            xp = xp["tile"].assign_attrs(xp.attrs)
             img = tiles_to_image(xp)
 
             layer_names = arr
