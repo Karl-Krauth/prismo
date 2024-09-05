@@ -305,7 +305,7 @@ def acq(ctrl, file, acq_func):
         store = zr.DirectoryStore(file)
         for x in acq_func(gui):
             for name, xp in gui.arrays.items():
-                xp.to_dataset(promote_attrs=True).to_zarr(
+                xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
                     store, group=name, compute=False, mode="a"
                 )
             yield
@@ -340,7 +340,7 @@ def multi_acq(ctrl, file, acq_func, overlap=0.0):
         store = zr.DirectoryStore(file)
         for x in acq_func(gui, pos[0]):
             for name, xp in gui.arrays.items():
-                xp.to_dataset(promote_attrs=True).to_zarr(
+                xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
                     store, group=name, compute=False, mode="a"
                 )
             yield
@@ -387,7 +387,7 @@ def tiled_acq(ctrl, file, acq_func, overlap, top_left=None, bot_right=None):
         store = zr.DirectoryStore(file)
         for x in acq_func(gui, xs, ys):
             for name, xp in gui.arrays.items():
-                xp.to_dataset(promote_attrs=True).to_zarr(
+                xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
                     store, group=name, compute=False, mode="a"
                 )
             yield
