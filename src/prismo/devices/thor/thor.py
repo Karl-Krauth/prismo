@@ -1,5 +1,6 @@
 from . import thor_lib
 
+
 class Light:
     def __init__(self, name, port):
         self.name = name

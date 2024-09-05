@@ -171,9 +171,7 @@ class LiveClient:
         self._timer.timeout.connect(self.update_img)
         self._timer.start(1000 // 30)
         for name, widget in widgets.items():
-            self._viewer.window.add_dock_widget(
-                widget(self._relay), name=name, tabify=False
-            )
+            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=False)
 
     def update_img(self):
         img = self._relay.get("img")
@@ -232,9 +230,7 @@ class AcqClient:
             self._refresh_timer.start(100)
 
         for name, widget in widgets.items():
-            self._viewer.window.add_dock_widget(
-                widget(self._relay), name=name, tabify=False
-            )
+            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=False)
 
     def start_acq(self, *args):
         self._live_timer.disconnect()
@@ -281,7 +277,9 @@ class AcqClient:
             new_dims = tuple(d for d in img.dims if d not in viewer_dims and d != "channel")
             self._viewer.dims.axis_labels = new_dims + viewer_dims
             # Make sure new dimension sliders get initialized to be 0.
-            self._viewer.dims.current_step = (0,) * len(new_dims) + self._viewer.dims.current_step[-len(new_dims):]
+            self._viewer.dims.current_step = (0,) * len(new_dims) + self._viewer.dims.current_step[
+                -len(new_dims) :
+            ]
         for layer in self._viewer.layers:
             layer.refresh()
 

@@ -155,6 +155,7 @@ class Shutter:
     def state(self, new_state):
         self.open = new_state == "open"
 
+
 class Focus:
     def __init__(self, name, core):
         self.name = name
@@ -176,4 +177,3 @@ class Focus:
     @z.setter
     def z(self, new_z):
         self._core.setPosition(self.name, new_z)
-

@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Camera:
     def __init__(self, name: str, core):
         self.name = name

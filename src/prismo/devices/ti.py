@@ -37,6 +37,7 @@ class Filter:
         else:
             self._core.setStateLabel(self.name, new_state)
 
+
 class LightPath:
     def __init__(self, name, core, states=None):
         self.name = name
@@ -119,6 +120,7 @@ class Objective:
     @property
     def zoom(self):
         return self.zooms[self.state]
+
 
 class Focus:
     def __init__(self, name, core):

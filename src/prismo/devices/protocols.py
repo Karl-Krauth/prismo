@@ -6,6 +6,7 @@ import numpy as np
 @runtime_checkable
 class Camera(Protocol):
     exposure: float
+
     def snap(self) -> np.ndarray: ...
 
 
@@ -39,4 +40,3 @@ class Wait(Protocol):
 @runtime_checkable
 class Zoom(Protocol):
     zoom: float
-
