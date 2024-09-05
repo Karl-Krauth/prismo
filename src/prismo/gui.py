@@ -38,7 +38,6 @@ class GUI:
 
         def run_router(pipe, running, quit):
             while not quit.is_set():
-                running.wait()
                 try:
                     route, args, kwargs = pipe.recv()
                     result = self._routes[route](*args, **kwargs)
