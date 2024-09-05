@@ -202,7 +202,7 @@ def live(ctrl):
 
 
 class AcqClient:
-    def __init__(self, viewer, relay, file, widgets):
+    def __init__(self, viewer, relay, file, widgets, tiled=False, multi=False):
         self._viewer = viewer
         self._relay = relay
         self._file = file
@@ -213,24 +213,33 @@ class AcqClient:
         img = self._relay.get("img")
         self._viewer.add_image(img, name="live")
 
-        self._live_timer.timeout.connect(self.update_img)
-        self._live_timer.start(1000 // 30)
-        self._viewer.window.add_dock_widget(
-            BoundarySelector(self._relay, self.acq_step),
-            name="Acquisition Boundaries",
-            tabify=False,
-        )
+        if tiled or multi:
+            self._live_timer.timeout.connect(self.update_img)
+            self._live_timer.start(1000 // 30)
+            if tiled:
+                self._viewer.window.add_dock_widget(
+                    BoundarySelector(self._relay, self.start_acq),
+                    name="Acquisition Boundaries",
+                    tabify=False,
+                )
+            elif multi:
+                # TODO: Implement multi acq.
+                pass
+        else:
+            self._refresh_timer.timeout.connect(self.refresh)
+            self._refresh_timer.start(100)
+
         for name, widget in widgets.items():
             self._viewer.window.add_dock_widget(
                 widget(self._relay), name=name, tabify=False
             )
 
-    def acq_step(self, top_left, bot_right):
+    def start_acq(self, *args):
         self._live_timer.disconnect()
         self._live_timer.stop()
         self._viewer.layers.remove("live")
 
-        self._relay.post("acq", top_left, bot_right)
+        self._relay.post("start_acq", *args)
         self._refresh_timer.timeout.connect(self.refresh)
         self._refresh_timer.start(100)
 
@@ -269,7 +278,6 @@ class AcqClient:
 
             new_dims = tuple(d for d in img.dims if d not in viewer_dims and d != "channel")
             self._viewer.dims.axis_labels = new_dims + viewer_dims
-            print(self._viewer.dims.axis_labels)
 
         for layer in self._viewer.layers:
             layer.refresh()
@@ -279,19 +287,41 @@ class AcqClient:
         self._viewer.layers[0].data = img
 
 
-def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
-    tile = ctrl.snap()
-    pos = [None, None]
-    acq_event = threading.Event()
-    if (top_left is None or bot_right is None) and overlap is not None:
-        get_pos = True
-    else:
-        acq_event.set()
-        get_pos = False
-
+def acq(ctrl, file, acq_func):
     widgets, widget_routes = init_widgets(ctrl)
     gui = GUI(
         lambda v, r: AcqClient(v, r, file=file, widgets=widgets),
+        file,
+        ctrl.snap(),
+        dict(acq_func=dill.source.getsource(acq_func)),
+    )
+
+    @gui.worker
+    def acq():
+        store = zr.DirectoryStore(file)
+        for x in acq_func(gui):
+            for name, xp in gui.arrays.items():
+                xp.to_dataset(promote_attrs=True).to_zarr(
+                    store, group=name, compute=False, mode="a"
+                )
+            yield
+
+    gui.route("arrays", lambda: set(gui.arrays.keys()))
+    for name, func in widget_routes.items():
+        gui.route(name, func)
+
+    gui.start()
+    return gui
+
+
+def multi_acq(ctrl, file, acq_func, overlap):
+    tile = ctrl.snap()
+    pos = [None]
+    acq_event = threading.Event()
+
+    widgets, widget_routes = init_widgets(ctrl)
+    gui = GUI(
+        lambda v, r: AcqClient(v, r, file=file, widgets=widgets, multi=True),
         file,
         ctrl.snap(),
         dict(overlap=overlap, acq_func=dill.source.getsource(acq_func)),
@@ -303,7 +333,53 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
             tile[:] = ctrl.snap()
             yield
 
-        xs, ys = pos
+        store = zr.DirectoryStore(file)
+        for x in acq_func(gui, pos[0]):
+            for name, xp in gui.arrays.items():
+                xp.to_dataset(promote_attrs=True).to_zarr(
+                    store, group=name, compute=False, mode="a"
+                )
+            yield
+
+    @gui.route("start_acq")
+    def start_acq(xys):
+        pos[0] = xys
+        acq_event.set()
+
+    gui.route("img", lambda: tile)
+    gui.route("xy", lambda: ctrl.xy)
+    gui.route("arrays", lambda: set(gui.arrays.keys()))
+    for name, func in widget_routes.items():
+        gui.route(name, func)
+
+    gui.start()
+    return gui
+
+
+def tiled_acq(ctrl, file, acq_func, overlap, top_left=None, bot_right=None):
+    tile = ctrl.snap()
+    pos = [None, None]
+    get_pos = top_left is None or bot_right is None
+    acq_event = threading.Event()
+
+    widgets, widget_routes = init_widgets(ctrl)
+    gui = GUI(
+        lambda v, r: AcqClient(v, r, file=file, widgets=widgets, tiled=get_pos),
+        file,
+        ctrl.snap(),
+        dict(overlap=overlap, acq_func=dill.source.getsource(acq_func)),
+    )
+
+    @gui.worker
+    def acq():
+        if get_pos:
+            while not acq_event.is_set():
+                tile[:] = ctrl.snap()
+                yield
+            xs, ys = pos
+        else:
+            xs, ys = tile_coords(ctrl, top_left, bot_right, overlap)
+
         store = zr.DirectoryStore(file)
         for x in acq_func(gui, xs, ys):
             for name, xp in gui.arrays.items():
@@ -312,22 +388,9 @@ def acquire(ctrl, file, acq_func, overlap=None, top_left=None, bot_right=None):
                 )
             yield
 
-    @gui.route("acq")
+    @gui.route("start_acq")
     def start_acq(top_left, bot_right):
-        if overlap is None:
-            xs = np.array([ctrl.x])
-            ys = np.array([ctrl.y])
-        else:
-            tile = ctrl.snap()
-            width = tile.shape[1]
-            height = tile.shape[0]
-            overlap_x = int(round(overlap * width))
-            overlap_y = int(round(overlap * height))
-            delta_x = (width - overlap_x) * ctrl.px_len
-            delta_y = (height - overlap_y) * ctrl.px_len
-            xs = np.arange(top_left[0], bot_right[0] + delta_x - 1, delta_x)
-            ys = np.arange(top_left[1], bot_right[1] + delta_y - 1, delta_y)
-
+        xs, ys = tile_coords(ctrl, top_left, bot_right, overlap)
         pos[0] = xs
         pos[1] = ys
         acq_event.set()
@@ -347,6 +410,19 @@ class DiskArray(da.core.Array):
 
     def __setitem__(self, key, value):
         self._zarr_array[key] = value
+
+
+def tile_coords(ctrl, top_left, bot_right, overlap):
+    tile = ctrl.snap()
+    width = tile.shape[1]
+    height = tile.shape[0]
+    overlap_x = int(round(overlap * width))
+    overlap_y = int(round(overlap * height))
+    delta_x = (width - overlap_x) * ctrl.px_len
+    delta_y = (height - overlap_y) * ctrl.px_len
+    xs = np.arange(top_left[0], bot_right[0] + delta_x - 1, delta_x)
+    ys = np.arange(top_left[1], bot_right[1] + delta_y - 1, delta_y)
+    return xs, ys
 
 
 def tiles_to_image(xp):
