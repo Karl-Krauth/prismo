@@ -1,6 +1,5 @@
 project(
     'prismo',
-    'cpp',
     version: '0.0.1',
     meson_version: '>= 1.1.0',
     default_options: [
@@ -14,6 +13,7 @@ cpp_dep = dependency('cpp', required: false)
 if cpp_dep.found()
     # Only try to build the devices subdir if we have a c++ compiler.
     pybind11_dep = dependency('pybind11')
+    cpp = meson.get_compiler('cpp')
     subdir('src/prismo/devices')
 endif
 
