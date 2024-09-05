@@ -10,7 +10,7 @@ import numpy as np
 import xarray as xr
 import zarr as zr
 
-from .widgets import BoundarySelector, init_widgets
+from .widgets import BoundarySelector, PositionSelector, init_widgets
 
 
 class Relay:
@@ -223,8 +223,11 @@ class AcqClient:
                     tabify=False,
                 )
             elif multi:
-                # TODO: Implement multi acq.
-                pass
+                self._viewer.window.add_dock_widget(
+                    PositionSelector(self._relay, self.start_acq),
+                    name="Acquisition Positions",
+                    tabify=False,
+                )
         else:
             self._refresh_timer.timeout.connect(self.refresh)
             self._refresh_timer.start(100)
@@ -314,7 +317,7 @@ def acq(ctrl, file, acq_func):
     return gui
 
 
-def multi_acq(ctrl, file, acq_func, overlap):
+def multi_acq(ctrl, file, acq_func, overlap=0.0):
     tile = ctrl.snap()
     pos = [None]
     acq_event = threading.Event()

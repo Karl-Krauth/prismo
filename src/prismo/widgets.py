@@ -6,6 +6,8 @@ from qtpy.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QHBoxLayout,
+    QVBoxLayout,
     QWidget,
 )
 from qtpy.QtGui import QDoubleValidator
@@ -101,6 +103,81 @@ class BoundarySelector(QWidget):
                     w.setStyleSheet("border: 1px solid red;")
                 else:
                     w.setStyleSheet("border: 0px;")
+
+
+class PositionSelector(QWidget):
+    def __init__(self, relay, next_step):
+        super().__init__()
+        layout = QVBoxLayout(self)
+        self.setMaximumHeight(150)
+
+        self.rows = QVBoxLayout()
+        layout.addLayout(self.rows)
+        btns = QHBoxLayout()
+        add_btn = QPushButton("Add")
+        continue_btn = QPushButton("Continue")
+        btns.addWidget(add_btn)
+        btns.addWidget(continue_btn)
+        layout.addLayout(btns)
+
+        self.add_row()
+        add_btn.clicked.connect(self.add_row)
+        continue_btn.clicked.connect(self.next_step)
+
+        self._relay = relay
+        self._next_step = next_step
+
+    def add_row(self):
+        row = QHBoxLayout()
+        self.rows.addLayout(row)
+        x = QLineEdit()
+        x.setValidator(QDoubleValidator())
+        y = QLineEdit()
+        y.setValidator(QDoubleValidator())
+        set_btn = QPushButton("Set")
+        set_btn.setMinimumWidth(50)
+        delete_btn = QPushButton("Rem")
+        delete_btn.setMinimumWidth(50)
+
+        row.addWidget(x)
+        row.addWidget(y)
+        row.addWidget(set_btn)
+        row.addWidget(delete_btn)
+
+        delete_btn.clicked.connect(lambda: self.delete(row))
+        set_btn.clicked.connect(lambda: self.set(row))
+
+    def set(self, row):
+        x = row.itemAt(0).widget()
+        y = row.itemAt(1).widget()
+        xy = self._relay.get("xy")
+        x.setText(f"{xy[0]:.2f}")
+        y.setText(f"{xy[1]:.2f}")
+
+    def delete(self, row):
+        self.rows.removeItem(row)
+
+    def next_step(self):
+        valid = True
+        xys = []
+
+        for i in range(self.rows.count()):
+            row = self.rows.itemAt(i).layout()
+            x = row.itemAt(0).widget()
+            y = row.itemAt(1).widget()
+            for w in [x, y]:
+                if not w.text():
+                    valid = False
+                    w.setStyleSheet("border: 1px solid red;")
+                else:
+                    w.setStyleSheet("border: 0px;")
+
+            if x.text() and y.text():
+                xys.append((float(x.text()), float(y.text())))
+
+        if valid:
+            self.close()
+            self._next_step(xys)
 
 
 class ValveController(QWidget):
