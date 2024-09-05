@@ -280,7 +280,8 @@ class AcqClient:
 
             new_dims = tuple(d for d in img.dims if d not in viewer_dims and d != "channel")
             self._viewer.dims.axis_labels = new_dims + viewer_dims
-
+            # Make sure new dimension sliders get initialized to be 0.
+            self._viewer.dims.current_step = (0,) * len(new_dims) + self._viewer.dims.current_step[-len(new_dims):]
         for layer in self._viewer.layers:
             layer.refresh()
 
