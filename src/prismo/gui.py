@@ -1,6 +1,7 @@
 import threading
 
 from qtpy.QtCore import QTimer
+from zarr.errors import ContainsGroupError
 import dask.array as da
 import dill
 import multiprocess
@@ -132,13 +133,16 @@ class GUI:
 
         try:
             xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
-                store, group=name, compute=False, encoding={name: {"compressor": compressor}}
+                store, group=name, compute=False, encoding={"tile": {"compressor": compressor}}
             )
-        except:
+        except ContainsGroupError:
             raise FileExistsError(f"{self._file}/{name} already exists.")
 
+        # Xarray/Dask don't natively support disk-writeable zarr arrays so we have to manually
+        # load the zarr array and patch in a modified dask array that writes to disk when
+        # __setitem__ is called.
         zarr_tiles = zr.open(
-            store, path=name + "/tile", mode="a", synchronizer=zr.ThreadSynchronizer()
+            store, path=f"{name}/tile", mode="a", synchronizer=zr.ThreadSynchronizer()
         )
         zarr_tiles.fill_value = 0
         tiles = da.from_zarr(zarr_tiles)
