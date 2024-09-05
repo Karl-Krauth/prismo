@@ -210,10 +210,9 @@ class AcqClient:
         self._refresh_timer = QTimer()
         self._arrays = set()
 
-        img = self._relay.get("img")
-        self._viewer.add_image(img, name="live")
-
         if tiled or multi:
+            img = self._relay.get("img")
+            self._viewer.add_image(img, name="live")
             self._live_timer.timeout.connect(self.update_img)
             self._live_timer.start(1000 // 30)
             if tiled:
