@@ -131,14 +131,14 @@ class GUI:
             xp.attrs[attr_name] = attr
 
         try:
-            xp.to_dataset(promote_attrs=True).to_zarr(
+            xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
                 store, group=name, compute=False, encoding={name: {"compressor": compressor}}
             )
         except:
             raise FileExistsError(f"{self._file}/{name} already exists.")
 
         zarr_tiles = zr.open(
-            store, path=name + "/" + name, mode="a", synchronizer=zr.ThreadSynchronizer()
+            store, path=name + "/tile", mode="a", synchronizer=zr.ThreadSynchronizer()
         )
         zarr_tiles.fill_value = 0
         tiles = da.from_zarr(zarr_tiles)
