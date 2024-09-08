@@ -4,6 +4,7 @@ class Filter:
         self.states = states
         self._core = core
         if "ti_scope" not in core.getLoadedDevices():
+            core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
         core.loadDevice(name, "NikonTI", "TIFilterBlock" + filter)
         core.setParentLabel(name, "ti_scope")
