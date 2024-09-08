@@ -45,6 +45,7 @@ class LightPath:
         self.states = states
         self._core = core
         if "ti_scope" not in core.getLoadedDevices():
+            core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
         core.loadDevice(name, "NikonTI", "TILightPath")
         core.setParentLabel(name, "ti_scope")
@@ -84,6 +85,7 @@ class Objective:
         self.states = states
         self._core = core
         if "ti_scope" not in core.getLoadedDevices():
+            core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
         core.loadDevice(name, "NikonTI", "TINosePiece")
         core.setParentLabel(name, "ti_scope")
@@ -128,6 +130,7 @@ class Focus:
         self.name = name
         self._core = core
         if "ti_scope" not in core.getLoadedDevices():
+            core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
         core.loadDevice(name, "NikonTI", "TIZDrive")
         core.setParentLabel(name, "ti_scope")
