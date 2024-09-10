@@ -6,7 +6,7 @@ class Filter:
         if "ti_scope" not in core.getLoadedDevices():
             core.loadDevice("ti_scope", "NikonTI", "TIScope")
             core.initializeDevice("ti_scope")
-        core.loadDevice(name, "NikonTI", "TIFilterBlock" + filter)
+        core.loadDevice(name, "NikonTI", "TIFilterBlock" + str(filter))
         core.setParentLabel(name, "ti_scope")
         core.initializeDevice(name)
 

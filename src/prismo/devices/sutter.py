@@ -1,9 +1,9 @@
-class Selector:
-    def __init__(self, name, core, wheel, port, states=None):
+class Filter:
+    def __init__(self, name, core, filter, port, states=None):
         self.name = name
         self.states = states
         self._core = core
-        core.loadDevice(name, "SutterLambda", "Wheel-" + wheel)
+        core.loadDevice(name, "SutterLambda", "Wheel-" + filter)
         core.setProperty(name, "Port", port)
         core.initializeDevice(name)
 
