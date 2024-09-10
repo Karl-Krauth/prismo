@@ -210,6 +210,8 @@ class AcqClient:
         self._live_timer = QTimer()
         self._refresh_timer = QTimer()
         self._arrays = set()
+        self._imgs = {}
+        self._contrast_set = set()
 
         if tiled or multi:
             img = self._relay.get("img")
@@ -262,27 +264,40 @@ class AcqClient:
             img = img.expand_dims([d for d in viewer_dims if d not in img.dims])
             img = img.transpose("channel", ..., *viewer_dims, missing_dims="ignore")
 
-            layers = self._viewer.add_image(
+            self._viewer.add_image(
                 img,
                 channel_axis=0 if "channel" in img.dims else None,
                 name=layer_names,
                 multiscale=False,
                 cache=False,
             )
-            layers = layers if isinstance(layers, list) else [layers]
-
-            for layer in layers:
-                # Turn on auto-contrast for all new layers.
-                self._viewer.window._qt_viewer._controls.widgets[
-                    layer
-                ].autoScaleBar._auto_btn.click()
-
             new_dims = tuple(d for d in img.dims if d not in viewer_dims and d != "channel")
             self._viewer.dims.axis_labels = new_dims + viewer_dims
             # Make sure new dimension sliders get initialized to be 0.
             self._viewer.dims.current_step = (0,) * len(new_dims) + self._viewer.dims.current_step[
                 -len(new_dims) :
             ]
+            # Save this array so we can set the contrast limits once a nonzero element gets added to it.
+            self._imgs[arr] = img
+
+        """
+        # Set contrast limits when a layer gets updated for the first time.
+        for arr, img in self._imgs.items():
+            if "channel" in img.dims:
+                for c in img.coords["channel"].to_numpy():
+                    layer_name = f"{arr}: {c}"
+                    subimg = img.sel(channel=c)
+                    if layer_name not in self._contrast_set and subimg.any():
+                        self._viewer.layers[layer_name].contrast_limits = (0, subimg.max().to_numpy())
+                        self._contrast_set.add(layer_name)
+            else:
+                if arr not in self._contrast_set and img.any():
+                    self._viewer.layers[arr].contrast_limits = (0, img.max().to_numpy())
+                    self._contrast_set.add(arr)
+        """
+
+
+        # Update each of the image layers.
         for layer in self._viewer.layers:
             layer.refresh()
 
