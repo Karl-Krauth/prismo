@@ -230,7 +230,7 @@ class AcqClient:
                 )
         else:
             self._refresh_timer.timeout.connect(self.refresh)
-            self._refresh_timer.start(100)
+            self._refresh_timer.start(1000)
 
         for name, widget in widgets.items():
             self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=False)
@@ -242,7 +242,7 @@ class AcqClient:
 
         self._relay.post("start_acq", *args)
         self._refresh_timer.timeout.connect(self.refresh)
-        self._refresh_timer.start(100)
+        self._refresh_timer.start(1000)
 
     def refresh(self):
         arrays = self._relay.get("arrays")
@@ -367,6 +367,7 @@ def tiled_acq(ctrl, file, acq_func, overlap, top_left=None, bot_right=None):
     acq_event = threading.Event()
 
     widgets, widget_routes = init_widgets(ctrl)
+    # TODO: Write additional attrs e.g. px_len.
     gui = GUI(
         lambda v, r: AcqClient(v, r, file=file, widgets=widgets, tiled=get_pos),
         file,
