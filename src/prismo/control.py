@@ -94,7 +94,7 @@ def load(config, path=None):
         elif device == "lambda_shutter2":
             devices.append(dev.sutter.Shutter(name, core, shutter="B", **params))
         elif device == "microfluidic_minichip":
-            devices.append(MiniChip(name, valves, **params))
+            devices.append(dev.microfluidic.MiniChip(name, valves, **params))
         elif device == "microfluidic_mux":
             devices.append(dev.microfluidic.Mux(name, valves, **params))
         elif device == "microfluidic_valves":

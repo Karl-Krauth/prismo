@@ -1,5 +1,5 @@
 import pymodbus.client
-
+import numpy as np
 
 class Valves:
     def __init__(self, name, ip, valves=None):
@@ -95,7 +95,7 @@ class Mux:
             self._valves[self._purge] = 0
 
     @property
-    def output(self):
+    def out(self):
         waste_state = 1 - self._valves[self._waste]
         flow_state = 1 - self._valves[self._flow]
         if waste_state and flow_state:
@@ -107,8 +107,8 @@ class Mux:
         else:
             return "closed"
 
-    @output.setter
-    def output(self, new_state):
+    @out.setter
+    def out(self, new_state):
         self._valves[self._waste] = 1
         self._valves[self._flow] = 1
         if new_state == "waste":
@@ -128,7 +128,7 @@ class MiniChip:
         self._ones = [mapping[f"{i}_1"] for i in reversed(range(num_bits))]
         self._all_io = self._zeros + self._ones
         self._buttons = mapping["buttons"]
-        self._out = mapping["output"]
+        self._out = mapping["out"]
         self._sandwiches = mapping["sandwiches"]
         self._valves = valves
 
@@ -176,11 +176,11 @@ class MiniChip:
             self._valves[self._buttons] = "on"
 
     @property
-    def output(self):
+    def out(self):
         return "closed" if self._valves[self._out] else "open"
 
-    @output.setter
-    def output(self, new_state):
+    @out.setter
+    def out(self, new_state):
         if new_state == "open" or not new_state:
             self._valves[self._out] = "off"
         else:
