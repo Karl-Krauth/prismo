@@ -105,7 +105,7 @@ def load(config, path=None):
         elif device == "spectra_light":
             devices.append(dev.lumencor.Light(name, core, version="spectra", **params))
         elif device == "thor_light":
-            devices.append(dev.thor.Light(name, core, **params))
+            devices.append(dev.thor.Light(name, **params))
         elif device == "ti_filter1":
             devices.append(dev.ti.Filter(name, core, filter=1, **params))
         elif device == "ti_filter2":
