@@ -12,9 +12,10 @@ class Light:
 
     @property
     def state(self):
-        return thor_lib.get_amps(self._device_id)
+        return int(thor_lib.get_amps(self._device_id) * 200)
 
     @state.setter
     def state(self, new_state):
-        thor_lib.set_amps(new_state)
+        new_state = new_state / 200
+        thor_lib.set_amps(self._device_id, new_state)
         thor_lib.toggle(self._device_id, new_state > 0)
