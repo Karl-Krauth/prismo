@@ -37,7 +37,7 @@ class Stage:
 
 
 class Focus:
-    def __init__(self, name, core):
+    def __init__(self, name, core, port):
         self.name = name
         self._core = core
         core.loadDevice(name, "ASIStage", "ZStage")
