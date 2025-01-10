@@ -36,7 +36,7 @@ class GUI:
             napari.run()
             pipe.close()
 
-        def run_router(pipe, running, quit):
+        def run_router(pipe, quit):
             while not quit.is_set():
                 try:
                     route, args, kwargs = pipe.recv()
@@ -87,7 +87,7 @@ class GUI:
 
     def worker(self, func):
         def run_worker():
-            for x in func():
+            for _ in func():
                 self._running.wait()
                 if self._quit.is_set():
                     break
@@ -249,7 +249,6 @@ class AcqClient:
     def refresh(self):
         arrays = self._relay.get("arrays")
         new_arrays = arrays - self._arrays
-        first_images = len(self._arrays) == 0
         self._arrays = arrays.union(self._arrays)
         for arr in new_arrays:
             xp = xr.open_zarr(self._file, group=arr)
@@ -318,7 +317,7 @@ def acq(ctrl, file, acq_func):
     @gui.worker
     def acq():
         store = zr.DirectoryStore(file)
-        for x in acq_func(gui):
+        for _ in acq_func(gui):
             for name, xp in gui.arrays.items():
                 xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
                     store, group=name, compute=False, mode="a"
@@ -353,7 +352,7 @@ def multi_acq(ctrl, file, acq_func, overlap=0.0):
             yield
 
         store = zr.DirectoryStore(file)
-        for x in acq_func(gui, pos[0]):
+        for _ in acq_func(gui, pos[0]):
             for name, xp in gui.arrays.items():
                 xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
                     store, group=name, compute=False, mode="a"
@@ -401,7 +400,7 @@ def tiled_acq(ctrl, file, acq_func, overlap, top_left=None, bot_right=None):
             xs, ys = tile_coords(ctrl, top_left, bot_right, overlap)
 
         store = zr.DirectoryStore(file)
-        for x in acq_func(gui, xs, ys):
+        for _ in acq_func(gui, xs, ys):
             for name, xp in gui.arrays.items():
                 xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
                     store, group=name, compute=False, mode="a"
