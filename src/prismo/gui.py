@@ -305,6 +305,35 @@ class AcqClient:
         self._viewer.layers[0].data = img
 
 
+def run(run_func):
+    class Runner:
+        def __init__(self):
+            self._running = threading.Event()
+            self._running.set()
+            self._quit = threading.Event()
+
+            def run_worker():
+                for _ in run_func(self):
+                    self._running.wait()
+                    if self._quit.is_set():
+                        break
+
+            self._worker = threading.Thread(target=run_worker)
+            self._worker.start()
+
+        def resume(self):
+            self._running.set()
+
+        def pause(self):
+            self._running.clear()
+
+        def quit(self):
+            self._running.set()
+            self._quit.set()
+
+    return Runner()
+
+
 def acq(ctrl, file, acq_func):
     widgets, widget_routes = init_widgets(ctrl)
     gui = GUI(
