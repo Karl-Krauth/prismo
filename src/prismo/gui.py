@@ -57,7 +57,7 @@ class GUI:
         self._gui_process = ctx.Process(target=run_gui, args=(child_pipe,))
         self._workers = []
         self._router = threading.Thread(
-            target=run_router, args=(self._pipe, self._running, self._quit)
+            target=run_router, args=(self._pipe, self._quit)
         )
         self._routes = {}
         self._arrays = {}
