@@ -33,9 +33,13 @@ class Filter:
 
     @state.setter
     def state(self, new_state):
+        # Run set state twice because ti1 scopes will reset the state to 0 when
+        # the filter wheel is manually moved no matter the value of new_state.
         if isinstance(new_state, int):
             self._core.setState(self.name, new_state)
+            self._core.setState(self.name, new_state)
         else:
+            self._core.setStateLabel(self.name, new_state)
             self._core.setStateLabel(self.name, new_state)
 
 
@@ -52,9 +56,7 @@ class LightPath:
 
         self.states = ["eye", "left", "right", "aux"] if states is None else states
         if len(self.states) != 4:
-            raise ValueError(
-                f"{name} requires 4 states (not {len(self.states)}) to be specified."
-            )
+            raise ValueError(f"{name} requires 4 states (not {len(self.states)}) to be specified.")
         for i, state in enumerate(self.states):
             self._core.defineStateLabel(name, i, state)
 

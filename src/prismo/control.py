@@ -254,8 +254,7 @@ class Control:
                     return device.state
                 else:
                     return device
-
-        return self.__getattribute__(name)
+        raise AttributeError(f"{name} is not a valid attribute.")
 
     def __setattr__(self, name, value):
         for device in self.devices:
