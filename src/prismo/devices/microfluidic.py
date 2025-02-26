@@ -220,3 +220,7 @@ class Chip:
             )
         else:
             super(Control, self).__setattr__(valve_name, value)
+
+    @property
+    def valves(self):
+        return {k: self.k == "closed" for k in self._mapping}

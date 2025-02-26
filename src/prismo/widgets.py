@@ -19,12 +19,12 @@ def init_widgets(ctrl):
     widgets = {}
     routes = {}
 
-    # TODO: Handle duplicates.
     for device in ctrl.devices:
-        if isinstance(device, devices.Valves):
-            widgets["Valve Controller"] = ValveController
+        if isinstance(device, devices.Valves) or isinstance(device, device.Chip):
+            path = f"widget/{device.name}"
+            widgets[f"{device.name} controller"] = lambda r: ValveController(r.subpath(path))
             server = ValveControllerServer(device)
-            routes = {**routes, **server.routes()}
+            routes = {**routes, **server.routes(path)}
 
     return widgets, routes
 
@@ -225,8 +225,8 @@ class ValveControllerServer:
     def __init__(self, valves):
         self._valves = valves
 
-    def routes(self):
-        return {"valves": self.get_valves, "set_valve": self.set_valve}
+    def routes(self, path):
+        return {path + "/valves": self.get_valves, path + "/set_valve": self.set_valve}
 
     def get_valves(self):
         return self._valves.valves

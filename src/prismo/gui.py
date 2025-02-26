@@ -15,15 +15,19 @@ from .widgets import BoundarySelector, PositionSelector, init_widgets
 
 
 class Relay:
-    def __init__(self, pipe):
+    def __init__(self, pipe, path=""):
+        self._path = path
         self._pipe = pipe
 
+    def subpath(self, path):
+        return Relay(self._pipe, self._path + path + "/")
+
     def get(self, route, *args, **kwargs):
-        self._pipe.send([route, args, kwargs])
+        self._pipe.send([self._path + route, args, kwargs])
         return self._pipe.recv()
 
     def post(self, route, *args, **kwargs):
-        self._pipe.send([route, args, kwargs])
+        self._pipe.send([self._path + route, args, kwargs])
 
 
 class GUI:
@@ -56,9 +60,7 @@ class GUI:
         self._pipe, child_pipe = ctx.Pipe()
         self._gui_process = ctx.Process(target=run_gui, args=(child_pipe,))
         self._workers = []
-        self._router = threading.Thread(
-            target=run_router, args=(self._pipe, self._quit)
-        )
+        self._router = threading.Thread(target=run_router, args=(self._pipe, self._quit))
         self._routes = {}
         self._arrays = {}
         self._array_lock = threading.Lock()
@@ -294,7 +296,6 @@ class AcqClient:
                     self._viewer.layers[arr].contrast_limits = (0, img.max().to_numpy())
                     self._contrast_set.add(arr)
         """
-
 
         # Update each of the image layers.
         for layer in self._viewer.layers:
