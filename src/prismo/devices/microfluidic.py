@@ -1,6 +1,7 @@
 import pymodbus.client
 import numpy as np
 
+
 class Valves:
     def __init__(self, name, ip, valves=None):
         self.name = name
@@ -196,3 +197,26 @@ class MiniChip:
             self._valves[self._sandwiches] = "off"
         else:
             self._valves[self._sandwiches] = "on"
+
+
+class Chip:
+    def __init__(self, name, valves, mapping):
+        # We can't directly set self._mapping = mapping since our overriden __setattr__
+        # depends on self._mapping being set.
+        super(Chip, self).__setattr__("_mapping", mapping)
+        self.name = name
+        self._valves = valves
+
+    def __getattr__(self, valve_name):
+        if item in self._mapping:
+            return "closed" if self._valves[self._mapping[valve_name]] else "open"
+        else:
+            raise AttributeError(f"{valve_name} is not a valid attribute.")
+
+    def __setattr__(self, valve_name, state):
+        if item in self._mapping:
+            self._valves[self._mapping[valve_name]] = (
+                "off" if state == "open" or not state else "on"
+            )
+        else:
+            super(Control, self).__setattr__(valve_name, value)
