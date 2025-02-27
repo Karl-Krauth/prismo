@@ -96,7 +96,7 @@ class Mux:
             self._valves[self._purge] = 0
 
     @property
-    def out(self):
+    def output(self):
         waste_state = 1 - self._valves[self._waste]
         flow_state = 1 - self._valves[self._flow]
         if waste_state and flow_state:
@@ -108,8 +108,8 @@ class Mux:
         else:
             return "closed"
 
-    @out.setter
-    def out(self, new_state):
+    @output.setter
+    def output(self, new_state):
         self._valves[self._waste] = 1
         self._valves[self._flow] = 1
         if new_state == "waste":
