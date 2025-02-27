@@ -28,7 +28,7 @@ class State(Protocol):
 
 
 @runtime_checkable
-class Valves(Protocol):
+class Valved(Protocol):
     valves: float
 
 

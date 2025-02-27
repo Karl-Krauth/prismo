@@ -20,9 +20,10 @@ def init_widgets(ctrl):
     routes = {}
 
     for device in ctrl.devices:
-        if isinstance(device, devices.Valves) or isinstance(device, device.Chip):
+        if isinstance(device, devices.Valved):
             path = f"widget/{device.name}"
-            widgets[f"{device.name} controller"] = lambda r: ValveController(r.subpath(path))
+            # We need to set a dummy default argument so path's value gets captured by the lambda.
+            widgets[f"{device.name} controller"] = lambda r, path=path: ValveController(r.subpath(path))
             server = ValveControllerServer(device)
             routes = {**routes, **server.routes(path)}
 

@@ -175,8 +175,10 @@ class LiveClient:
         self._timer = QTimer()
         self._timer.timeout.connect(self.update_img)
         self._timer.start(1000 // 30)
+        tabify = False
         for name, widget in widgets.items():
-            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=False)
+            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=tabify, area="left")
+            tabify = True
 
     def update_img(self):
         img = self._relay.get("img")
@@ -236,8 +238,10 @@ class AcqClient:
             self._refresh_timer.timeout.connect(self.refresh)
             self._refresh_timer.start(1000)
 
+        tabify = False
         for name, widget in widgets.items():
-            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=False)
+            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=tabify, area="left")
+            tabify=True
 
     def start_acq(self, *args):
         self._live_timer.disconnect()

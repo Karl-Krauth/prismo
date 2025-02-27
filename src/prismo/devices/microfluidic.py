@@ -207,20 +207,26 @@ class Chip:
         self.name = name
         self._valves = valves
 
-    def __getattr__(self, valve_name):
-        if item in self._mapping:
-            return "closed" if self._valves[self._mapping[valve_name]] else "open"
+    def __getattr__(self, key):
+        if key in self._mapping:
+            return "closed" if self._valves[self._mapping[key]] else "open"
         else:
-            raise AttributeError(f"{valve_name} is not a valid attribute.")
+            return self.__getattribute__(key)
 
-    def __setattr__(self, valve_name, state):
-        if item in self._mapping:
-            self._valves[self._mapping[valve_name]] = (
+    def __setattr__(self, key, state):
+        if key in self._mapping:
+            self._valves[self._mapping[key]] = (
                 "off" if state == "open" or not state else "on"
             )
         else:
-            super(Control, self).__setattr__(valve_name, value)
+            super(Chip, self).__setattr__(key, state)
+
+    def __getitem__(self, key):
+        return self.__getattr__[key]
+
+    def __setitem__(self, key, value):
+        self.__setattr__(key, value)
 
     @property
     def valves(self):
-        return {k: self.k == "closed" for k in self._mapping}
+        return {k: self.__getattr__(k) == "closed" for k in self._mapping}
