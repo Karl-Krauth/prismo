@@ -57,14 +57,14 @@ def purge_common_inlet(
     # Flow to waste for the given time
     if verbose:
         print(f"Flowing {flow} to {waste} for {time} seconds.")
-    getattr(chip, flow) = 'open'
-    getattr(chip, waste) = 'open'
+    setattr(chip, flow, 'open')
+    setattr(chip, waste, 'open')
     for i in range(time):
         time.sleep(1)
 
     if not keep_open:
-        getattr(chip, flow) = 'closed'
-    getattr(chip, waste) = 'closed'
+        setattr(chip, flow, 'closed')
+    setattr(chip, waste, 'closed')
     if verbose:
         print(f"Done flowing {flow} to {waste}.")
 
@@ -191,18 +191,18 @@ def pattern_antiGFP(
 
     # Close all valves
     for valve in chip._mapping:
-        getattr(chip, valve) = 'closed'
+        setattr(chip, valve) = 'closed'
     if verbose:
         print(f'Closed all valves for device {chip.name}')
 
     # Prep bBSA flow
     chip.sandR = 'open'
-    chip.sandL = 'open',
+    chip.sandL = 'open'
     
-    getattr(chip, outlet) = 'open'
+    setattr(chip, outlet, 'open')
 
-    getattr(chip, bBSA) = 'open'
-    getattr(chip, waste) = 'open'
+    setattr(chip, bBSA, 'open')
+    setattr(chip, waste, 'open')
 
     if verbose:
         print(f'Flushing {bBSA} to {waste} for 5 sec, then closing {waste}.')
@@ -223,7 +223,7 @@ def pattern_antiGFP(
     for i in range(35*60):
         time.sleep(1)
 
-    getattr(chip, bBSA) = 'closed'
+    setattr(chip, bBSA, 'closed')
     if verbose:
         print(f'Done flowing {bBSA}.)
 
@@ -238,7 +238,7 @@ def pattern_antiGFP(
     for i in range(10*60):
         time.sleep(1)
 
-    getattr(chip, PBS) = 'closed'
+    setattr(chip, PBS, 'closed')
     if verbose:
         print(f'Done flowing PBS ({PBS}).)
 
@@ -253,16 +253,16 @@ def pattern_antiGFP(
     for i in range(30*60):
         time.sleep(1)
 
-    getattr(chip, NA) = 'closed'
+    setattr(chip, NA, 'closed')
     if verbose:
         print(f'Done flowing NA ({NA}). Flowing PBS ({PBS}) through device for 10 min.')
 
     # Wash with PBS
-    getattr(chip, PBS) = 'open'
+    setattr(chip, PBS, 'open')
     for i in range(10*60):
         time.sleep(1)
 
-    getattr(chip, PBS) = 'closed'
+    setattr(chip, PBS, 'closed')
     if verbose:
         print(f'Done flowing PBS ({PBS}).')
         print(f'Flowing {bBSA} for 35 min with buttons closed to quench walls.')
@@ -270,20 +270,20 @@ def pattern_antiGFP(
     # Quench walls with bBSA
     chip.butR = 'closed'
     chip.butL = 'closed'
-    getattr(chip, bBSA) = 'open'
+    setattr(chip, bBSA, 'open')
     for i in range(35*60):
         time.sleep(1)
 
-    getattr(chip, bBSA) = 'closed'
+    setattr(chip, bBSA, 'closed')
     if verbose:
         print(f'Done flowing {bBSA}. Flowing PBS ({PBS}) through device for 10 min.')
 
     # Wash with PBS
-    getattr(chip, PBS) = 'open'
+    setattr(chip, PBS, 'open')
     for i in range(10*60):
         time.sleep(1)
 
-    getattr(chip, PBS) = 'closed'
+    setattr(chip, PBS, 'closed')
     if verbose:
         print(f'Done flowing PBS ({PBS}). NEXT STEP IS ANTI-GFP FLOWING.')
 
@@ -315,7 +315,7 @@ def pattern_antiGFP(
         print(f'Done flowing antiGFP ({antiGFP}) through device. Washing with PBS.')
 
     # Final PBS wash
-    getattr(chip, PBS) = 'open'
+    setattr(chip, PBS, 'open')
     for i in range(10*60):
         time.sleep(1)
 
@@ -323,6 +323,6 @@ def pattern_antiGFP(
         print(f'Done flowing PBS ({PBS}). Closing outlet.)
 
     # Close outlet to dead-end fill
-    getattr(chip, outlet) = 'closed'
+    setattr(chip, outlet, 'closed')
     
     
