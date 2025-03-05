@@ -191,7 +191,7 @@ def pattern_antiGFP(
 
     # Close all valves
     for valve in chip._mapping:
-        setattr(chip, valve) = 'closed'
+        setattr(chip, valve, 'closed')
     if verbose:
         print(f'Closed all valves for device {chip.name}')
 
@@ -225,7 +225,7 @@ def pattern_antiGFP(
 
     setattr(chip, bBSA, 'closed')
     if verbose:
-        print(f'Done flowing {bBSA}.)
+        print(f'Done flowing {bBSA}.')
 
     # Flush with PBS
     if verbose:
@@ -240,7 +240,7 @@ def pattern_antiGFP(
 
     setattr(chip, PBS, 'closed')
     if verbose:
-        print(f'Done flowing PBS ({PBS}).)
+        print(f'Done flowing PBS ({PBS}).')
 
     # Neutravidin
     if verbose:
@@ -320,7 +320,7 @@ def pattern_antiGFP(
         time.sleep(1)
 
     if verbose:
-        print(f'Done flowing PBS ({PBS}). Closing outlet.)
+        print(f'Done flowing PBS ({PBS}). Closing outlet.')
 
     # Close outlet to dead-end fill
     setattr(chip, outlet, 'closed')
