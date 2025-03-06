@@ -9,7 +9,7 @@ def purge_common_inlet(
     chip: Chip, 
     flow: str,
     waste: str,
-    time: int = 5,
+    wait_time: int = 5,
     keep_flow_open: bool = True,
     verbose: bool = True,
 ) -> None:
@@ -56,10 +56,10 @@ def purge_common_inlet(
 
     # Flow to waste for the given time
     if verbose:
-        print(f"Flowing {flow} to {waste} for {time} seconds.")
+        print(f"Flowing {flow} to {waste} for {wait_time} seconds.")
     setattr(chip, flow, 'open')
     setattr(chip, waste, 'open')
-    for i in range(time):
+    for i in range(wait_time):
         time.sleep(1)
 
     if not keep_open:
