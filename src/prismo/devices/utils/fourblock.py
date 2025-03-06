@@ -6,7 +6,7 @@ from ..microfluidic import Chip
 ###############################
 
 def purge_common_inlet(
-    chip: Chip, 
+    chip: Chip,
     flow: str,
     waste: str,
     wait_time: int = 5,
@@ -26,7 +26,7 @@ def purge_common_inlet(
         The name of the inlet being purged.
     waste :
         The name of the waste inlet to purge to.
-    time :
+    wait_time :
         Number of seconds to purge `flow`.
     keep_flow_open :
         Wether to keep the flow valve open.
@@ -45,7 +45,7 @@ def purge_common_inlet(
 
     Examples:
     ---------
-    >>> purge_common_inlet(c.chip, 'bBSA2', 'waste1', time=10, verbose=False)
+    >>> purge_common_inlet(c.chip, 'bBSA2', 'waste1', wait_time=10, verbose=False)
 
     This will close the inlet1 control valve and open bBSA2 and waste1 flow
     valves for 10 seconds without printing anything out.
@@ -62,7 +62,7 @@ def purge_common_inlet(
     for i in range(wait_time):
         time.sleep(1)
 
-    if not keep_open:
+    if not keep_flow_open:
         setattr(chip, flow, 'closed')
     setattr(chip, waste, 'closed')
     if verbose:
@@ -71,7 +71,7 @@ def purge_common_inlet(
 
 def purge_block_inlets(
     chip: Chip,
-    time: int = 5,
+    wait_time: int = 5,
     keep_block1_open: bool = False,
     verbose: bool = True,
 ) -> None:
@@ -84,7 +84,7 @@ def purge_block_inlets(
     -----------
     chip :
         The prismo.devices.microfluidic.Chip object for 4-block device.
-    time :
+    wait_time :
         Number of seconds to purge `flow`.
     keep_block1_open :
         Whether to keep the block1 control valve open. (Dead-end fill.)
@@ -103,7 +103,7 @@ def purge_block_inlets(
 
     Examples:
     ---------
-    >>> purge_block_inlets(c.chip, time=10, keep_block1_open=True)
+    >>> purge_block_inlets(c.chip, wait_time=10, keep_block1_open=True)
     """
 
     # Close inlets 1 and 2
@@ -112,7 +112,7 @@ def purge_block_inlets(
 
     # Flow upper block inlets to lower (waste) inlets
     if verbose:
-        print(f"Purging all block inlets for {time} seconds.")
+        print(f"Purging all block inlets for {wait_time} seconds.")
     chip.block1 = 'open'
     chip.block2 = 'open'
     for i in range(time):
@@ -206,7 +206,7 @@ def pattern_antiGFP(
 
     if verbose:
         print(f'Flushing {bBSA} to {waste} for 5 sec, then closing {waste}.')
-    purge_common_inlet(chip, bBSA, waste, time=5, verbose=False)
+    purge_common_inlet(chip, bBSA, waste, wait_time=5, verbose=False)
 
     # Flow with buttons closed
     chip.inlet1 = 'open'
@@ -230,7 +230,7 @@ def pattern_antiGFP(
     # Flush with PBS
     if verbose:
         print(f'Flushing PBS ({PBS}) to {waste} for 30 sec, then closing {waste}.')
-    purge_common_inlet(chip, PBS, waste, time=30, verbose=False)
+    purge_common_inlet(chip, PBS, waste, wait_time=30, verbose=False)
     chip.inlet1 = 'open'
     
     if verbose:
@@ -245,7 +245,7 @@ def pattern_antiGFP(
     # Neutravidin
     if verbose:
         print(f'Flushing NA ({NA}) to {waste} for 30 sec, then closing {waste}.')
-    purge_common_inlet(chip, NA, waste, time=30, verbose=False)
+    purge_common_inlet(chip, NA, waste, wait_time=30, verbose=False)
     chip.inlet1 = 'open'
 
     if verbose:
@@ -290,7 +290,7 @@ def pattern_antiGFP(
     # Anti-GFP flowing
     if verbose:
         print(f'Flushing antiGFP ({antiGFP}) to {waste} for 30 sec, then closing {waste}.')
-    purge_common_inlet(chip, antiGFP, waste, time=30, verbose=False)
+    purge_common_inlet(chip, antiGFP, waste, wait_time=30, verbose=False)
     chip.inlet1 = 'open'
     
     if verbose:
