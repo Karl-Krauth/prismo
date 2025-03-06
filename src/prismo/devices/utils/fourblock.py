@@ -199,22 +199,20 @@ def pattern_antiGFP(
     if verbose:
         print(f'Closed all valves for device {chip.name}')
 
-    # Prep bBSA flow
+    # Prep device flow state; need sandR, sandL, inlet2, and outlet open
     chip.sandR = 'open'
     chip.sandL = 'open'
-    
+    chip.inlet2 = 'open'
     setattr(chip, outlet, 'open')
 
-    setattr(chip, bBSA, 'open')
-    setattr(chip, waste, 'open')
-
+    # Flow with buttons closed
     if verbose:
         print(f'>>> Step 1: bBSA flow - {_timestamp()}')
         print(f'Flushing {bBSA} to {waste} for 5 sec, then closing {waste}.')
-    purge_common_inlet(chip, bBSA, waste, wait_time=5, verbose=False)
 
-    # Flow with buttons closed
+    purge_common_inlet(chip, bBSA, waste, wait_time=5, verbose=False)
     chip.inlet1 = 'open'
+    
     if verbose:
         print(f'Flushing {bBSA} through device with buttons closed for 5 min.')
     for i in range(5*60):
