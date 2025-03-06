@@ -1,5 +1,5 @@
 from ..microfluidic import Chip
-from .general import _timestamp, _check_valve_mappings
+from .general import _timestamp, _check_valve_mapping
 
 import time
 from pprint import pp
@@ -11,7 +11,7 @@ from pprint import pp
 def safe_state(
     chip: Chip,
     buffer: str,
-): -> None
+) -> None:
     """Sets device to a safe state.
     Parameters:
     -----------
