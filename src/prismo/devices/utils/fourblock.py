@@ -5,6 +5,9 @@ from ..microfluidic import Chip
 # Common flow functions
 ###############################
 
+def _timestamp():
+    return time.strftime('%y-%m-%d %H:%M:%S', time.localtime(time.time()))
+
 def purge_common_inlet(
     chip: Chip,
     flow: str,
@@ -177,6 +180,7 @@ def pattern_antiGFP(
     >>> pattern_antiGFP(c.chip)
     """
     if verbose:
+        print(f'>>> Patterning - {_timestamp()}')
         print(f'Starting antiGFP patterning script for device {chip.name}.')
         print('NOTE: Passivation with BSA should already have been done.')
         mappings = {
@@ -205,6 +209,7 @@ def pattern_antiGFP(
     setattr(chip, waste, 'open')
 
     if verbose:
+        print(f'>>> Step 1: bBSA flow - {_timestamp()}')
         print(f'Flushing {bBSA} to {waste} for 5 sec, then closing {waste}.')
     purge_common_inlet(chip, bBSA, waste, wait_time=5, verbose=False)
 
@@ -244,6 +249,7 @@ def pattern_antiGFP(
 
     # Neutravidin
     if verbose:
+        print(f'>>> Step 2: Neutravidin flow - {_timestamp()}')
         print(f'Flushing NA ({NA}) to {waste} for 30 sec, then closing {waste}.')
     purge_common_inlet(chip, NA, waste, wait_time=30, verbose=False)
     chip.inlet1 = 'open'
@@ -265,9 +271,11 @@ def pattern_antiGFP(
     setattr(chip, PBS, 'closed')
     if verbose:
         print(f'Done flowing PBS ({PBS}).')
-        print(f'Flowing {bBSA} for 35 min with buttons closed to quench walls.')
 
     # Quench walls with bBSA
+    if verbose:
+        print(f'>>> Step 3: bBSA quench - {_timestamp()}')
+        print(f'Flowing {bBSA} for 35 min with buttons closed to quench walls.')
     chip.butR = 'closed'
     chip.butL = 'closed'
     setattr(chip, bBSA, 'open')
@@ -285,10 +293,11 @@ def pattern_antiGFP(
 
     setattr(chip, PBS, 'closed')
     if verbose:
-        print(f'Done flowing PBS ({PBS}). NEXT STEP IS ANTI-GFP FLOWING.')
+        print(f'Done flowing PBS ({PBS}).')
 
     # Anti-GFP flowing
     if verbose:
+        print(f'>>> Step 4: antiGFP flow - {_timestamp()}')
         print(f'Flushing antiGFP ({antiGFP}) to {waste} for 30 sec, then closing {waste}.')
     purge_common_inlet(chip, antiGFP, waste, wait_time=30, verbose=False)
     chip.inlet1 = 'open'
@@ -312,7 +321,7 @@ def pattern_antiGFP(
         time.sleep(1)
 
     if verbose:
-        print(f'Done flowing antiGFP ({antiGFP}) through device. Washing with PBS.')
+        print(f'Done flowing antiGFP ({antiGFP}) through device. Washing with PBS ({PBS}).')
 
     # Final PBS wash
     setattr(chip, PBS, 'open')
@@ -324,5 +333,7 @@ def pattern_antiGFP(
 
     # Close outlet to dead-end fill
     setattr(chip, outlet, 'closed')
-    
+
+    if verbose:
+        print(f'>>> Done with patterning - {_timestamp()}')
     
