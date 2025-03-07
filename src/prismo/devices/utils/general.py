@@ -1,7 +1,7 @@
 import time
 from ..microfluidic import Chip
 
-def _check_valve_mapping(chip: Chip, valves: str):
+def _check_valve_mapping(chip: Chip, valve: str):
     if valve not in chip._mappings:
         raise ValueError(f'Valve {valve} not found in chip mappings.')
 
