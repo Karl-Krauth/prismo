@@ -243,15 +243,9 @@ def pattern_antiGFP(
     ---------
     >>> pattern_antiGFP(c.chip)
     """
-    mappings = {
-        'waste': waste,
-        'bBSA': bBSA,
-        'NA': NA,
-        'antiGFP': antiGFP,
-        'PBS': PBS,
-        'outlet': outlet,
-    }
-    for valve in mappings:
+    # Check valve mappings for the non-hard-coded valves
+    valve_args = [waste, bBSA, NA, antiGFP, PBS, outlet]
+    for valve in valve_args:
         _check_valve_mapping(chip, valve)
     
     _hard_coded = ['inlet1', 'inlet2', 'sandR', 'sandL', 'butR', 'butL']
