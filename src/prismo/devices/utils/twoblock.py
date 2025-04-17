@@ -12,6 +12,7 @@ _hard_coded = [
     'butR',
     'butL',
     'out',
+    'neck',
 ]
 
 def safe_state(
