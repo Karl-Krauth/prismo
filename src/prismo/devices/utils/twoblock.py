@@ -1,25 +1,17 @@
 from ..microfluidic import Chip
 from .general import sleep, _timestamp, _check_valve_mapping
 
+import time
 from pprint import pp
-
-###############################
-# Common flow functions
-###############################
 
 # Hard-coded valve names
 _hard_coded = [
-    'inlet1',
-    'inlet2',
+    'inlet',
     'sandR',
     'sandL',
     'butR',
     'butL',
-    'out1',
-    'out2',
-    'block1',
-    'block2',
-    'neck',
+    'out',
 ]
 
 def safe_state(
@@ -29,7 +21,7 @@ def safe_state(
     Parameters:
     -----------
     chip :
-        The prismo.devices.microfluidic.Chip object for 4-block device.
+        The prismo.devices.microfluidic.Chip object for 2-block device.
     """
     for valve in _hard_coded:
         try:
@@ -52,7 +44,7 @@ def deadend_fill(
     Parameters:
     -----------
     chip :
-        The prismo.devices.microfluidic.Chip object for 4-block device.
+        The prismo.devices.microfluidic.Chip object for 2-block device.
     buffer :
         Name of buffer line.
     """
@@ -67,17 +59,17 @@ def deadend_fill(
             )
     
     # Close all valves except buffer, inlets, and sandwiches
-    closed = ['butR', 'butL', 'out1', 'out2', 'block1', 'block2']
+    closed = ['butR', 'butL', 'out']
     for valve in closed:
         chip[valve] = 'closed'
     
     # Dead-end fill from buffer through chambers
-    opened = [buffer, 'inlet1', 'inlet2', 'sandR', 'sandL']
+    opened = [buffer, 'inlet', 'sandR', 'sandL']
     for valve in opened:
         chip[valve] = 'open'
 
 
-def purge_common_inlet(
+def purge_inlet(
     chip: Chip,
     flow: str,
     waste: str,
@@ -85,15 +77,15 @@ def purge_common_inlet(
     keep_flow_open: bool = True,
     verbose: bool = True,
 ) -> None:
-    """Purges air from a common inlet for a set amount of time.
+    """Purges air from an inlet for a set amount of time.
 
     Expects that flow and waste inlet valves are in the common valve
-    location (i.e., common inlet flow valves 1–5).
+    location (i.e., common inlet flow valves 1–9).
 
     Parameters:
     -----------
     chip :
-        The prismo.devices.microfluidic.Chip object for 4-block device.
+        The prismo.devices.microfluidic.Chip object for 2-block device.
     flow :
         The name of the inlet being purged.
     waste :
@@ -117,9 +109,9 @@ def purge_common_inlet(
 
     Examples:
     ---------
-    >>> purge_common_inlet(c.chip, 'bBSA2', 'waste1', wait_time=10, verbose=False)
+    >>> purge_inlet(c.chip, 'bBSA2', 'waste1', wait_time=10, verbose=False)
 
-    This will close the inlet1 control valve and open bBSA2 and waste1 flow
+    This will close the inlet control valve and open bBSA2 and waste1 flow
     valves for 10 seconds without printing anything out.
     """
     _check_valve_mapping(chip, flow)
@@ -133,8 +125,8 @@ def purge_common_inlet(
                 f'Must be one of {_hard_coded}.'
             )
 
-    # Close inlet 1
-    chip.inlet1 = 'closed'
+    # Close inlet
+    chip.inlet = 'closed'
 
     # Flow to waste for the given time
     if verbose:
@@ -150,69 +142,6 @@ def purge_common_inlet(
         print(f"Done flowing {flow} to {waste}.")
 
 
-def purge_block_inlets(
-    chip: Chip,
-    wait_time: int = 5,
-    keep_block1_open: bool = False,
-    verbose: bool = True,
-) -> None:
-    """Purges all four block-specific inlets for a set amount of time.
-
-    Expects that block inlets contain low-pressure lines to flow to the
-    adjacent block outlets, between block1 and block2 control lines.
-
-    Parameters:
-    -----------
-    chip :
-        The prismo.devices.microfluidic.Chip object for 4-block device.
-    wait_time :
-        Number of seconds to purge `flow`.
-    keep_block1_open :
-        Whether to keep the block1 control valve open. (Dead-end fill.)
-    verbose :
-        Whether to print each step.
-    
-    Returns:
-    --------
-    None :
-        This function controls flow on a 4-block device; nothing is
-        returned.
-
-    Notes:
-    ------
-    None.
-
-    Examples:
-    ---------
-    >>> purge_block_inlets(c.chip, wait_time=10, keep_block1_open=True)
-    """
-    for valve in _hard_coded:
-        try:
-            _check_valve_mapping(chip, valve)
-        except ValueError:
-            raise ValueError(
-                f'Incorrect valve name {valve} in mapping.'\
-                f'Must be one of {_hard_coded}.'
-            )
-    # Close inlets 1 and 2
-    chip.inlet1 = 'closed'
-    chip.inlet2 = 'closed'
-
-    # Flow upper block inlets to lower (waste) inlets
-    if verbose:
-        print(f"Purging all block inlets for {wait_time} seconds.")
-    chip.block1 = 'open'
-    chip.block2 = 'open'
-    sleep(wait_time)
-
-    if not keep_block1_open:
-        if verbose:
-            print("Leaving block 1 open.")
-        chip.block1 = 'closed'
-    chip.block2 = 'closed'
-    if verbose:
-        print("Done purging block inlets.")
-
 ###############################
 # Patterning
 ###############################
@@ -223,17 +152,16 @@ def pattern_antiGFP(
     bBSA: str = 'bBSA2',
     NA: str = 'na3',
     antiGFP: str = 'in4',
-    PBS: str = 'in5',
-    outlet: str = 'out2',
+    PBS: str = 'in9',
     verbose: bool = True,
 ) -> None:
-    """Patterns a 4-block device to add a bBSA-NA-antiGFP pedestal 
+    """Patterns a 2-block device to add a bBSA-NA-antiGFP pedestal 
     under the button.
     
     Parameters:
     -----------
     chip :
-        The prismo.devices.microfluidic.Chip object for 4-block device.
+        The prismo.devices.microfluidic.Chip object for 2-block device.
     waste :
         The waste valve for purging air from other inlets.
     bBSA :
@@ -243,16 +171,14 @@ def pattern_antiGFP(
     antiGFP :
         Inlet containing antiGFP.
     PBS :
-        Inlet containing PBS.
-    outlet :
-        Which outlet to use ('out2' = common, 'out1' = block-specific).
+        Inlet containing PBS. Defaults to in9.
     verbose :
         Whether to print each step.
 
     Returns:
     --------
     None :
-        This function runs patterning for a 4-block device; nothing is
+        This function runs patterning for a 2-block device; nothing is
         returned.
 
     Notes:
@@ -264,7 +190,7 @@ def pattern_antiGFP(
     >>> pattern_antiGFP(c.chip)
     """
     # Check valve mappings for the non-hard-coded valves
-    valve_args = [waste, bBSA, NA, antiGFP, PBS, outlet]
+    valve_args = [waste, bBSA, NA, antiGFP, PBS]
     for valve in valve_args:
         _check_valve_mapping(chip, valve)
     
@@ -288,7 +214,6 @@ def pattern_antiGFP(
             'NA': NA,
             'antiGFP': antiGFP,
             'PBS': PBS,
-            'outlet': outlet,
         })
 
     # Close all valves
@@ -297,19 +222,18 @@ def pattern_antiGFP(
     if verbose:
         print(f'Closed all valves for device {chip.name}')
 
-    # Prep device flow state; need sandR, sandL, inlet2, and outlet open
+    # Prep device flow state; need sandR, sandL, and outlet open
     chip.sandR = 'open'
     chip.sandL = 'open'
-    chip.inlet2 = 'open'
-    chip[outlet] = 'open'
+    chip.out = 'open'
 
     # Flow with buttons closed
     if verbose:
         print(f'>>> Step 1: bBSA flow - {_timestamp()}')
         print(f'Flushing {bBSA} to {waste} for 5 sec, then closing {waste}.')
 
-    purge_common_inlet(chip, bBSA, waste, wait_time=5, verbose=False)
-    chip.inlet1 = 'open'
+    purge_inlet(chip, bBSA, waste, wait_time=5, verbose=False)
+    chip.inlet = 'open'
     
     if verbose:
         print(f'Flushing {bBSA} through device with buttons closed for 5 min.')
@@ -329,8 +253,8 @@ def pattern_antiGFP(
     # Flush with PBS
     if verbose:
         print(f'Flushing PBS ({PBS}) to {waste} for 30 sec, then closing {waste}.')
-    purge_common_inlet(chip, PBS, waste, wait_time=30, verbose=False)
-    chip.inlet1 = 'open'
+    purge_inlet(chip, PBS, waste, wait_time=30, verbose=False)
+    chip.inlet = 'open'
     
     if verbose:
         print(f'Flushing PBS ({PBS}) through device with buttons open for 10 min.')
@@ -344,8 +268,8 @@ def pattern_antiGFP(
     if verbose:
         print(f'>>> Step 2: Neutravidin flow - {_timestamp()}')
         print(f'Flushing NA ({NA}) to {waste} for 30 sec, then closing {waste}.')
-    purge_common_inlet(chip, NA, waste, wait_time=30, verbose=False)
-    chip.inlet1 = 'open'
+    purge_inlet(chip, NA, waste, wait_time=30, verbose=False)
+    chip.inlet = 'open'
 
     if verbose:
         print(f'Flushing NA ({NA}) through device with buttons open for 30 min.')
@@ -388,8 +312,8 @@ def pattern_antiGFP(
     if verbose:
         print(f'>>> Step 4: antiGFP flow - {_timestamp()}')
         print(f'Flushing antiGFP ({antiGFP}) to {waste} for 30 sec, then closing {waste}.')
-    purge_common_inlet(chip, antiGFP, waste, wait_time=30, verbose=False)
-    chip.inlet1 = 'open'
+    purge_inlet(chip, antiGFP, waste, wait_time=30, verbose=False)
+    chip.inlet = 'open'
     
     if verbose:
         print(f'Flowing antiGFP ({antiGFP}) through device for 30 sec.')
@@ -418,7 +342,7 @@ def pattern_antiGFP(
         print(f'Done flowing PBS ({PBS}). Closing outlet.')
 
     # Close outlet to dead-end fill
-    chip[outlet] = 'closed'
+    chip.out = 'closed'
 
     if verbose:
         print(f'>>> Done with patterning - {_timestamp()}')
@@ -432,8 +356,7 @@ def SDS_wash(
     chip: Chip,
     waste: str = 'waste1',
     SDS: str = 'bBSA2',
-    PBS: str = 'in5',
-    outlet: str = 'out2',
+    PBS: str = 'in9',
     wash_lagoons: bool = True,
     final_neck_state: str = 'closed',
     verbose: bool = True,
@@ -444,15 +367,13 @@ def SDS_wash(
     Parameters:
     -----------
     chip :
-        The prismo.devices.microfluidic.Chip object for 4-block device.
+        The prismo.devices.microfluidic.Chip object for 2-block device.
     waste :
         The waste valve for purging air from other inlets.
     SDS :
         Inlet containing SDS.
     PBS :
         Inlet containing wash PBS.
-    outlet :
-        Which outlet to use ('out2' = common, 'out1' = block-specific).
     wash_lagoons :
         Whether to wash with necks open or closed. Default open.
     final_neck_state :
@@ -463,7 +384,7 @@ def SDS_wash(
     Returns:
     --------
     None :
-        This function SDS-washes a 4-block device; nothing is returned.
+        This function SDS-washes a 2-block device; nothing is returned.
 
     Notes:
     ------
@@ -499,7 +420,6 @@ def SDS_wash(
             'waste': waste,
             'SDS': SDS,
             'PBS': PBS,
-            'outlet': outlet,
         })
 
         # Set dead-end fill flow state
@@ -512,25 +432,25 @@ def SDS_wash(
         else:
             chip.neck = 'closed'
         
-        purge_common_inlet(chip, SDS, waste, verbose=False)
-        chip.inlet1 = 'open'
-        chip[outlet] = 'open'
+        purge_inlet(chip, SDS, waste, verbose=False)
+        chip.inlet = 'open'
+        chip.out = 'open'
 
         sleep(5*60)
 
         chip[SDS] = 'closed'
-        chip[outlet] = 'closed'
+        chip.out = 'closed'
 
         # Wash with PBS for 10 min
         if verbose:
             print(f'>>> Washing with PBS - {_timestamp()}')
-        purge_common_inlet(chip, PBS, waste, verbose=False)
-        chip.inlet1 = 'open'
-        chip[outlet] = 'open'
+        purge_inlet(chip, PBS, waste, verbose=False)
+        chip.inlet = 'open'
+        chip.out = 'open'
 
         sleep(10*60)
 
-        chip[outlet] = 'closed'
+        chip.out = 'closed'
 
         chip.neck = final_neck_state
     
