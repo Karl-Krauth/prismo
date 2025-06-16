@@ -12,7 +12,7 @@ dependencies = [
     "multiprocess>=0.70.0",
     "napari>=0.5.0",
     "pybind11>=2.13.5",
-    "pymmcore>=11.5.1.73.0",
+    "pymmcore",
     "pymodbus>=3.9.0",
     "xarray[io]>=2025.01.0",
     "zarr>=3.0.0",
