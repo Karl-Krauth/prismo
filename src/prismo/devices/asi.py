@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class Stage:
     def __init__(self, name, core, port):
         self.name = name

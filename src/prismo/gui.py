@@ -1,7 +1,5 @@
 import threading
 
-from qtpy.QtCore import QTimer
-from zarr.errors import ContainsGroupError
 import dask.array as da
 import dill
 import multiprocess
@@ -10,6 +8,8 @@ import numcodecs
 import numpy as np
 import xarray as xr
 import zarr as zr
+from qtpy.QtCore import QTimer
+from zarr.errors import ContainsGroupError
 
 from .widgets import BoundarySelector, PositionSelector, init_widgets
 
@@ -177,7 +177,9 @@ class LiveClient:
         self._timer.start(1000 // 30)
         tabify = False
         for name, widget in widgets.items():
-            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=tabify, area="left")
+            self._viewer.window.add_dock_widget(
+                widget(self._relay), name=name, tabify=tabify, area="left"
+            )
             tabify = True
 
     def update_img(self):
@@ -240,8 +242,10 @@ class AcqClient:
 
         tabify = False
         for name, widget in widgets.items():
-            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=tabify, area="left")
-            tabify=True
+            self._viewer.window.add_dock_widget(
+                widget(self._relay), name=name, tabify=tabify, area="left"
+            )
+            tabify = True
 
     def start_acq(self, *args):
         self._live_timer.disconnect()

@@ -1,16 +1,16 @@
 import functools
 
 from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QDoubleValidator
 from qtpy.QtWidgets import (
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
-    QHBoxLayout,
     QVBoxLayout,
     QWidget,
 )
-from qtpy.QtGui import QDoubleValidator
 
 from . import devices
 
@@ -23,7 +23,9 @@ def init_widgets(ctrl):
         if isinstance(device, devices.Valved):
             path = f"widget/{device.name}"
             # We need to set a dummy default argument so path's value gets captured by the lambda.
-            widgets[f"{device.name} controller"] = lambda r, path=path: ValveController(r.subpath(path))
+            widgets[f"{device.name} controller"] = lambda r, path=path: ValveController(
+                r.subpath(path)
+            )
             server = ValveControllerServer(device)
             routes = {**routes, **server.routes(path)}
 

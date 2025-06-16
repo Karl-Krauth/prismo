@@ -52,9 +52,7 @@ class LightPath:
 
         self.states = ["eye", "right", "aux", "left"] if states is None else states
         if len(self.states) != 4:
-            raise ValueError(
-                f"{name} requires 4 states (not {len(self.states)}) to be specified."
-            )
+            raise ValueError(f"{name} requires 4 states (not {len(self.states)}) to be specified.")
         for i, state in enumerate(self.states):
             self._core.defineStateLabel(name, i, state)
 

@@ -1,5 +1,5 @@
-import pymodbus.client
 import numpy as np
+import pymodbus.client
 
 
 class Valves:
@@ -215,9 +215,7 @@ class Chip:
 
     def __setattr__(self, key, state):
         if key in self._mapping:
-            self._valves[self._mapping[key]] = (
-                "off" if state == "open" or not state else "on"
-            )
+            self._valves[self._mapping[key]] = "off" if state == "open" or not state else "on"
         else:
             super(Chip, self).__setattr__(key, state)
 
