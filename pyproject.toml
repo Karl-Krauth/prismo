@@ -7,14 +7,12 @@ readme = "README.md"
 requires-python = ">=3.8, <3.14"
 
 dependencies = [
-    black = ">=22.6.0"
-    mypy = "^1.0.1"
-    pybind11 = ">=2.13.5"
-    pytest = ">=7.1.2"
-    ruff = ">=0.0.249"
-    sphinx = "^5.0.2"
-    sphinx-autodoc-typehints = "^1.22"
-    sphinx-press-theme = ">=0.8.0"
+    "multiprocess>=0.70.0"
+    "napari>=0.5.0",
+    "pybind11>=2.13.5",
+    "pymodbus>=3.9.0",
+    "xarray[io]>=2025.01.0",
+    "zarr>=3.0.0",
 ]
 
 [build-system]
