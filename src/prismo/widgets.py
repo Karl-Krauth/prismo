@@ -218,7 +218,9 @@ class ValveController(QWidget):
 
     def button_stylesheet(self, is_green):
         return (
-            f"background-color: {'green' if is_green else 'red'};margin: 0.5px;border-radius: 0px;"
+            f"background-color: {'green' if is_green else 'red'};"
+            + "margin: 0.5px;"
+            + "border-radius: 0px;"
         )
 
 
