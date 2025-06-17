@@ -21,7 +21,7 @@ class Valves:
         else:
             addr = self._valves.index(key)
         addr += 512
-        return 0 if self._client.read_coils(addr, 1).bits[0] else 1
+        return 0 if self._client.read_coils(addr).bits[0] else 1
 
     def __setitem__(self, key, value):
         if isinstance(key, int):
