@@ -1,4 +1,4 @@
-from typing import runtime_checkable, Protocol
+from typing import Protocol, runtime_checkable
 
 import numpy as np
 
@@ -28,7 +28,7 @@ class State(Protocol):
 
 
 @runtime_checkable
-class Valves(Protocol):
+class Valved(Protocol):
     valves: float
 
 

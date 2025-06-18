@@ -1,16 +1,16 @@
 import functools
 
 from qtpy.QtCore import Qt, QTimer
+from qtpy.QtGui import QDoubleValidator
 from qtpy.QtWidgets import (
     QGridLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
-    QHBoxLayout,
     QVBoxLayout,
     QWidget,
 )
-from qtpy.QtGui import QDoubleValidator
 
 from . import devices
 
@@ -19,12 +19,15 @@ def init_widgets(ctrl):
     widgets = {}
     routes = {}
 
-    # TODO: Handle duplicates.
     for device in ctrl.devices:
-        if isinstance(device, devices.Valves):
-            widgets["Valve Controller"] = ValveController
+        if isinstance(device, devices.Valved):
+            path = f"widget/{device.name}"
+            # We need to set a dummy default argument so path's value gets captured by the lambda.
+            widgets[f"{device.name} controller"] = lambda r, path=path: ValveController(
+                r.subpath(path)
+            )
             server = ValveControllerServer(device)
-            routes = {**routes, **server.routes()}
+            routes = {**routes, **server.routes(path)}
 
     return widgets, routes
 
@@ -216,8 +219,8 @@ class ValveController(QWidget):
     def button_stylesheet(self, is_green):
         return (
             f"background-color: {'green' if is_green else 'red'};"
-            "margin: 0.5px;"
-            "border-radius: 0px;"
+            + "margin: 0.5px;"
+            + "border-radius: 0px;"
         )
 
 
@@ -225,8 +228,8 @@ class ValveControllerServer:
     def __init__(self, valves):
         self._valves = valves
 
-    def routes(self):
-        return {"valves": self.get_valves, "set_valve": self.set_valve}
+    def routes(self, path):
+        return {path + "/valves": self.get_valves, path + "/set_valve": self.set_valve}
 
     def get_valves(self):
         return self._valves.valves

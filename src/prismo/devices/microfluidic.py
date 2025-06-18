@@ -1,5 +1,6 @@
-import pymodbus.client
 import numpy as np
+import pymodbus.client
+
 
 class Valves:
     def __init__(self, name, ip, valves=None):
@@ -20,7 +21,7 @@ class Valves:
         else:
             addr = self._valves.index(key)
         addr += 512
-        return 0 if self._client.read_coils(addr, 1).bits[0] else 1
+        return 0 if self._client.read_coils(addr).bits[0] else 1
 
     def __setitem__(self, key, value):
         if isinstance(key, int):
@@ -95,7 +96,7 @@ class Mux:
             self._valves[self._purge] = 0
 
     @property
-    def out(self):
+    def output(self):
         waste_state = 1 - self._valves[self._waste]
         flow_state = 1 - self._valves[self._flow]
         if waste_state and flow_state:
@@ -107,8 +108,8 @@ class Mux:
         else:
             return "closed"
 
-    @out.setter
-    def out(self, new_state):
+    @output.setter
+    def output(self, new_state):
         self._valves[self._waste] = 1
         self._valves[self._flow] = 1
         if new_state == "waste":
@@ -196,3 +197,34 @@ class MiniChip:
             self._valves[self._sandwiches] = "off"
         else:
             self._valves[self._sandwiches] = "on"
+
+
+class Chip:
+    def __init__(self, name, valves, mapping):
+        # We can't directly set self._mapping = mapping since our overriden __setattr__
+        # depends on self._mapping being set.
+        super(Chip, self).__setattr__("_mapping", mapping)
+        self.name = name
+        self._valves = valves
+
+    def __getattr__(self, key):
+        if key in self._mapping:
+            return "closed" if self._valves[self._mapping[key]] else "open"
+        else:
+            return self.__getattribute__(key)
+
+    def __setattr__(self, key, state):
+        if key in self._mapping:
+            self._valves[self._mapping[key]] = "off" if state == "open" or not state else "on"
+        else:
+            super(Chip, self).__setattr__(key, state)
+
+    def __getitem__(self, key):
+        return self.__getattr__[key]
+
+    def __setitem__(self, key, value):
+        self.__setattr__(key, value)
+
+    @property
+    def valves(self):
+        return {k: self.__getattr__(k) == "closed" for k in self._mapping}

@@ -93,6 +93,8 @@ def load(config, path=None):
             devices.append(dev.sutter.Shutter(name, core, shutter="A", **params))
         elif device == "lambda_shutter2":
             devices.append(dev.sutter.Shutter(name, core, shutter="B", **params))
+        elif device == "microfluidic_chip":
+            devices.append(dev.microfluidic.Chip(name, valves, **params))
         elif device == "microfluidic_minichip":
             devices.append(dev.microfluidic.MiniChip(name, valves, **params))
         elif device == "microfluidic_mux":
@@ -252,7 +254,6 @@ class Control:
                     return device.state
                 else:
                     return device
-
         return self.__getattribute__(name)
 
     def __setattr__(self, name, value):

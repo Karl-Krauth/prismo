@@ -1,29 +1,32 @@
 import threading
 
-from qtpy.QtCore import QTimer
-from zarr.errors import ContainsGroupError
 import dask.array as da
 import dill
 import multiprocess
 import napari
-import numcodecs
 import numpy as np
 import xarray as xr
 import zarr as zr
+from qtpy.QtCore import QTimer
+from zarr.errors import ContainsGroupError
 
 from .widgets import BoundarySelector, PositionSelector, init_widgets
 
 
 class Relay:
-    def __init__(self, pipe):
+    def __init__(self, pipe, path=""):
+        self._path = path
         self._pipe = pipe
 
+    def subpath(self, path):
+        return Relay(self._pipe, self._path + path + "/")
+
     def get(self, route, *args, **kwargs):
-        self._pipe.send([route, args, kwargs])
+        self._pipe.send([self._path + route, args, kwargs])
         return self._pipe.recv()
 
     def post(self, route, *args, **kwargs):
-        self._pipe.send([route, args, kwargs])
+        self._pipe.send([self._path + route, args, kwargs])
 
 
 class GUI:
@@ -56,9 +59,7 @@ class GUI:
         self._pipe, child_pipe = ctx.Pipe()
         self._gui_process = ctx.Process(target=run_gui, args=(child_pipe,))
         self._workers = []
-        self._router = threading.Thread(
-            target=run_router, args=(self._pipe, self._running, self._quit)
-        )
+        self._router = threading.Thread(target=run_router, args=(self._pipe, self._quit))
         self._routes = {}
         self._arrays = {}
         self._array_lock = threading.Lock()
@@ -124,15 +125,15 @@ class GUI:
             if not isinstance(coords, int):
                 xp.coords[dim_name] = coords
 
-        store = zr.DirectoryStore(self._file)
-        compressor = numcodecs.Blosc(cname="zstd", clevel=5, shuffle=numcodecs.Blosc.BITSHUFFLE)
+        store = zr.storage.LocalStore(self._file)
+        compressor = zr.codecs.BloscCodec(cname="zstd", clevel=5, shuffle=zr.codecs.BloscShuffle.bitshuffle)
 
         for attr_name, attr in self._attrs.items():
             xp.attrs[attr_name] = attr
 
         try:
             xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
-                store, group=name, compute=False, encoding={"tile": {"compressor": compressor}}
+                store, group=name, compute=False, encoding={"tile": {"compressors": compressor}}
             )
         except ContainsGroupError:
             raise FileExistsError(f"{self._file}/{name} already exists.")
@@ -141,9 +142,8 @@ class GUI:
         # load the zarr array and patch in a modified dask array that writes to disk when
         # __setitem__ is called.
         zarr_tiles = zr.open(
-            store, path=f"{name}/tile", mode="a", synchronizer=zr.ThreadSynchronizer()
+            store, path=f"{name}/tile", mode="a"
         )
-        zarr_tiles.fill_value = 0
         tiles = da.from_zarr(zarr_tiles)
         tiles.__class__ = DiskArray
         tiles._zarr_array = zarr_tiles
@@ -173,8 +173,12 @@ class LiveClient:
         self._timer = QTimer()
         self._timer.timeout.connect(self.update_img)
         self._timer.start(1000 // 30)
+        tabify = False
         for name, widget in widgets.items():
-            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=False)
+            self._viewer.window.add_dock_widget(
+                widget(self._relay), name=name, tabify=tabify, area="left"
+            )
+            tabify = True
 
     def update_img(self):
         img = self._relay.get("img")
@@ -234,8 +238,12 @@ class AcqClient:
             self._refresh_timer.timeout.connect(self.refresh)
             self._refresh_timer.start(1000)
 
+        tabify = False
         for name, widget in widgets.items():
-            self._viewer.window.add_dock_widget(widget(self._relay), name=name, tabify=False)
+            self._viewer.window.add_dock_widget(
+                widget(self._relay), name=name, tabify=tabify, area="left"
+            )
+            tabify = True
 
     def start_acq(self, *args):
         self._live_timer.disconnect()
@@ -295,7 +303,6 @@ class AcqClient:
                     self._contrast_set.add(arr)
         """
 
-
         # Update each of the image layers.
         for layer in self._viewer.layers:
             layer.refresh()
@@ -345,7 +352,7 @@ def acq(ctrl, file, acq_func):
 
     @gui.worker
     def acq():
-        store = zr.DirectoryStore(file)
+        store = zr.storage.LocalStore(file)
         for _ in acq_func(gui):
             for name, xp in gui.arrays.items():
                 xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
@@ -380,7 +387,7 @@ def multi_acq(ctrl, file, acq_func, overlap=0.0):
             tile[:] = ctrl.snap()
             yield
 
-        store = zr.DirectoryStore(file)
+        store = zr.storage.LocalStore(file)
         for _ in acq_func(gui, pos[0]):
             for name, xp in gui.arrays.items():
                 xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
@@ -428,7 +435,7 @@ def tiled_acq(ctrl, file, acq_func, overlap, top_left=None, bot_right=None):
         else:
             xs, ys = tile_coords(ctrl, top_left, bot_right, overlap)
 
-        store = zr.DirectoryStore(file)
+        store = zr.storage.LocalStore(file)
         for _ in acq_func(gui, xs, ys):
             for name, xp in gui.arrays.items():
                 xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
