@@ -396,7 +396,7 @@ def SDS_wash(
     >>> SDS_wash(c.chip)
     """
     # Check valve mappings for the non-hard-coded valves
-    valve_args = [waste, SDS, PBS, outlet]
+    valve_args = [waste, SDS, PBS]
     for valve in valve_args:
         _check_valve_mapping(chip, valve)
     
