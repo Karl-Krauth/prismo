@@ -69,7 +69,6 @@ def load(config, path=None):
             continue
 
         device = params.pop("device")
-
         if device == "asi_stage":
             devices.append(dev.asi.Stage(name, core, **params))
         elif device == "asi_zstage":
@@ -82,7 +81,8 @@ def load(config, path=None):
             devices.append(dev.demo.Stage(name, core))
         elif device == "demo_valves":
             devices.append(dev.demo.Valves(name, **params))
-            valves = devices[-1]
+        elif device == "fluidic_sipper":
+            devices.append(dev.fluidic.Sipper(name, **params))
         elif device == "lambda_filter1":
             devices.append(dev.sutter.Filter(name, core, filter="A", **params))
         elif device == "lambda_filter2":
