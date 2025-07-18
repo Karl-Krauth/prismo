@@ -22,6 +22,10 @@ class Sipper:
         self._mapping = mapping if mapping is not None else {}
         self.home()
 
+    def pause(self):
+        self.voltage = 0
+        self.frequency = 0
+
     @property
     def xyz(self):
         return self._xyz
@@ -62,6 +66,7 @@ class Sipper:
         self.xyz = (self._xyz[0], self._xyz[1], value)
 
     def home(self):
+        self.pause()
         msg = struct.pack("<B", 0)
         self._cnc_socket.write(msg)
         self._cnc_socket.read(1)
@@ -154,17 +159,15 @@ class Sipper:
         self.z = self._z_bottom
         self._well = new_well
 
-    def sip(self, well):
-        self.frequency = 0
-        self.voltage = 0
+    def flow(self, well):
+        self.pause()
         self.well = well
         self.valve = "closed"
         self.frequency = 200
         self.voltage = 250
 
     def purge(self, well):
-        self.frequency = 0
-        self.voltage = 0
+        self.pause()
         self.well = well
         self.valve = "open"
         self.frequency = 200
