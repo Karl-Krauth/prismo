@@ -66,6 +66,7 @@ class Sipper:
         self.xyz = (self._xyz[0], self._xyz[1], value)
 
     def home(self):
+        self._well = "none"
         self.pause()
         msg = struct.pack("<B", 0)
         self._cnc_socket.write(msg)
@@ -94,7 +95,9 @@ class Sipper:
         self._valve = value
         msg = struct.pack("<B", value)
         self._valve_socket.write(msg)
-        self._valve_socket.read(1)
+        err = self._valve_socket.read(1)
+        if err != b"\x00":
+            raise RuntimeError("Failed to toggle the valve.")
 
     @property
     def frequency(self):
@@ -106,7 +109,9 @@ class Sipper:
             raise ValueError("Frequency must be less than or equal to 800 Hz.")
         self._frequency = value
         self._pump_socket.write(struct.pack("<HB", self._frequency, self._voltage))
-        self._pump_socket.read(1)
+        err = self._pump_socket.read(1)
+        if err != b"\x00":
+            raise RuntimeError(read_byte_str(self._pump_socket))
 
     @property
     def voltage(self):
@@ -117,6 +122,9 @@ class Sipper:
         self._voltage = value
         self._pump_socket.write(struct.pack("<HB", self._frequency, self._voltage))
         self._pump_socket.read(1)
+        err = self._pump_socket.read(1)
+        if err != b"\x00":
+            raise RuntimeError(read_byte_str(self._pump_socket))
 
     @property
     def well(self):
