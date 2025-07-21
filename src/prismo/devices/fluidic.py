@@ -159,9 +159,6 @@ class Sipper:
         else:
             pos = new_well
 
-        if new_well == self._well:
-            return
-
         if not re.fullmatch(r"[A-H]1?[0-9]", pos) or int(pos[1:]) > 12:
             raise ValueError("Plate position must be in the format [A-Z][1-12].")
 
