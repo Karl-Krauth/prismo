@@ -200,9 +200,10 @@ class Sipper:
 def atomic_msg(socket, sleep_time=0.2):
     try:
         yield
-    finally:
+    except Exception as e:
         time.sleep(sleep_time)
         socket.reset_input_buffer()
+        raise e
 
 def read_byte_str(socket):
     received_bytes = bytearray()
