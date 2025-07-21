@@ -1,15 +1,17 @@
+import contextlib
 import re
 import serial
 import struct
+import time
 
 import numpy as np
 
 class Sipper:
     def __init__(self, name, cnc_port, pump_port, valve_port, a1_pos, h12_pos, z_bottom, mapping=None, x_max=7500, y_max=6000, z_max=3000):
         self.name = name
-        self._cnc_socket = serial.Serial(cnc_port, baudrate=9600)
-        self._valve_socket = serial.Serial(valve_port, baudrate=9600)
-        self._pump_socket = serial.Serial(pump_port, baudrate=9600)
+        self._cnc_socket = serial.Serial(cnc_port, baudrate=9600, timeout=30)
+        self._valve_socket = serial.Serial(valve_port, baudrate=9600, timeout=1)
+        self._pump_socket = serial.Serial(pump_port, baudrate=9600, timeout=1)
         self._xyz = np.zeros(3)
         self._max = np.array([x_max, y_max, z_max])
         self._valve = 1
@@ -20,6 +22,11 @@ class Sipper:
         self._z_bottom = z_bottom
         self._well = "none"
         self._mapping = mapping if mapping is not None else {}
+
+        time.sleep(0.2)
+        self._cnc_socket.reset_input_buffer()
+        self._valve_socket.reset_input_buffer()
+        self._pump_socket.reset_input_buffer()
         self.home()
 
     def pause(self):
@@ -35,11 +42,11 @@ class Sipper:
         value = np.array(value)
         if np.any(value < 0) or np.any(value > 1):
             raise ValueError("Coordinates must be in the range [0, 1].")
+        with atomic_msg(self._cnc_socket, sleep_time=30):
+            msg = struct.pack("<BIII", 1, *(value * self._max).astype(np.uint32))
+            self._cnc_socket.write(msg)
+            self._cnc_socket.read(1)
         self._xyz = value
-        value = (value * self._max).astype(np.uint32)
-        msg = struct.pack("<BIII", 1, *value)
-        self._cnc_socket.write(msg)
-        self._cnc_socket.read(1)
 
     @property
     def x(self):
@@ -68,22 +75,33 @@ class Sipper:
     def home(self):
         self._well = "none"
         self.pause()
-        msg = struct.pack("<B", 0)
-        self._cnc_socket.write(msg)
-        self._cnc_socket.read(1)
         self._xyz = np.zeros(3)
+        with atomic_msg(self._cnc_socket, sleep_time=30):
+            msg = struct.pack("<B", 0)
+            self._cnc_socket.write(msg)
+            self._cnc_socket.read(1)
 
     @property
     def flow_rate(self):
-        msg = struct.pack("<B", 2)
-        self._valve_socket.write(msg)
-        error = self._valve_socket.read(1)
-        if error != b"\x00":
-            raise RuntimeError(read_byte_str(self._valve_socket))
-        flow = struct.unpack("<f", self._valve_socket.read(4))[0]
-        temperature, flags = struct.unpack("<fH", self._valve_socket.read(6))
-        print(temperature, flags)
-        return flow
+        return self.sensor_info()[0]
+
+    @property
+    def temperature(self):
+        return self.sensor_info()[1]
+
+    @property
+    def air(self):
+        return (self.sensor_info()[2] & 0x01) == 1
+
+    def sensor_info(self):
+        with atomic_msg(self._valve_socket):
+            msg = struct.pack("<B", 2)
+            self._valve_socket.write(msg)
+            error = self._valve_socket.read(1)
+            if error != b"\x00":
+                raise RuntimeError(read_byte_str(self._valve_socket))
+            flow_rate, temperature, flags = struct.unpack("<ffH", self._valve_socket.read(10))
+        return flow_rate, temperature, flags
 
     @property
     def valve(self):
@@ -92,12 +110,13 @@ class Sipper:
     @valve.setter
     def valve(self, value):
         value = 1 if value in [1, "open"] else 0
+        with atomic_msg(self._valve_socket):
+            msg = struct.pack("<B", value)
+            self._valve_socket.write(msg)
+            err = self._valve_socket.read(1)
+            if err != b"\x00":
+                raise RuntimeError(f"Failed to toggle the valve expected response 0 got {err}.")
         self._valve = value
-        msg = struct.pack("<B", value)
-        self._valve_socket.write(msg)
-        err = self._valve_socket.read(1)
-        if err != b"\x00":
-            raise RuntimeError("Failed to toggle the valve.")
 
     @property
     def frequency(self):
@@ -105,13 +124,8 @@ class Sipper:
 
     @frequency.setter
     def frequency(self, value):
-        if value > 800 or value < 0:
-            raise ValueError("Frequency must be less than or equal to 800 Hz.")
+        self.set_pump(self._voltage, value)
         self._frequency = value
-        self._pump_socket.write(struct.pack("<HB", self._frequency, self._voltage))
-        err = self._pump_socket.read(1)
-        if err != b"\x00":
-            raise RuntimeError(read_byte_str(self._pump_socket))
 
     @property
     def voltage(self):
@@ -119,12 +133,15 @@ class Sipper:
 
     @voltage.setter
     def voltage(self, value):
+        self.set_pump(value, self._frequency)
         self._voltage = value
-        self._pump_socket.write(struct.pack("<HB", self._frequency, self._voltage))
-        self._pump_socket.read(1)
-        err = self._pump_socket.read(1)
-        if err != b"\x00":
-            raise RuntimeError(read_byte_str(self._pump_socket))
+
+    def set_pump(self, voltage, frequency):
+        with atomic_msg(self._pump_socket):
+            self._pump_socket.write(struct.pack("<HB", frequency, voltage))
+            err = self._pump_socket.read(1)
+            if err != b"\x00":
+                raise RuntimeError(f"Failed to set the pump expected response 0 got {err}.")
 
     @property
     def well(self):
@@ -181,6 +198,14 @@ class Sipper:
         self.frequency = 200
         self.voltage = 250
 
+
+@contextlib.contextmanager
+def atomic_msg(socket, sleep_time=0.2):
+    try:
+        yield
+    finally:
+        time.sleep(sleep_time)
+        socket.reset_input_buffer()
 
 def read_byte_str(socket):
     received_bytes = bytearray()
