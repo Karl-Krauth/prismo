@@ -83,6 +83,8 @@ def load(config, path=None):
             devices.append(dev.demo.Valves(name, **params))
         elif device == "fluidic_sipper":
             devices.append(dev.fluidic.Sipper(name, **params))
+        elif device == "fluigent_flowcontroller":
+            devices.append(dev.fluigent.FlowController(name, **params))
         elif device == "lambda_filter1":
             devices.append(dev.sutter.Filter(name, core, filter="A", **params))
         elif device == "lambda_filter2":
