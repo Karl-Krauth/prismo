@@ -6,6 +6,17 @@ import time
 
 import numpy as np
 
+class FlowController:
+    def __init__(self, name, port):
+        self._socket = serial.Serial(port, baudrate=115200, timeout=1)
+
+    def write(self):
+        self._socket.write(b"\x01\x01\x00")
+
+    def read(self):
+        return self._socket.read(3)
+
+
 class Sipper:
     def __init__(self, name, cnc_port, pump_port, valve_port, a1_pos, h12_pos, z_bottom, mapping=None, x_max=7500, y_max=6000, z_max=3000):
         self.name = name
