@@ -1,11 +1,3 @@
-from . import asi
-from . import demo
-from . import lumencor
-from . import microfluidic
-from . import sutter
-from . import thor
-from . import ti
-from . import ti2
-from . import zyla
+from . import asi, demo, fluidic, fluigent, lumencor, microfluidic, sutter, thor, ti, ti2, zyla
 from .protocols import *
 from . import utils
