@@ -69,75 +69,76 @@ def load(config, path=None):
             continue
 
         device = params.pop("device")
-        if device == "asi_stage":
-            devices.append(dev.asi.Stage(name, core, **params))
-        elif device == "asi_zstage":
-            devices.append(dev.asi.Focus(name, core, **params))
-        elif device == "demo_camera":
-            devices.append(dev.demo.Camera(name, core))
-        elif device == "demo_filter":
-            devices.append(dev.demo.Filter(name, core, **params))
-        elif device == "demo_stage":
-            devices.append(dev.demo.Stage(name, core))
-        elif device == "demo_valves":
-            devices.append(dev.demo.Valves(name, **params))
-        elif device == "fluidic_sipper":
-            devices.append(dev.fluidic.Sipper(name, **params))
-        elif device == "fluigent_flowcontroller":
-            devices.append(dev.fluigent.FlowController(name, **params))
-        elif device == "lambda_filter1":
-            devices.append(dev.sutter.Filter(name, core, filter="A", **params))
-        elif device == "lambda_filter2":
-            devices.append(dev.sutter.Filter(name, core, filter="B", **params))
-        elif device == "lambda_filter3":
-            devices.append(dev.sutter.Filter(name, core, filter="C", **params))
-        elif device == "lambda_shutter1":
-            devices.append(dev.sutter.Shutter(name, core, shutter="A", **params))
-        elif device == "lambda_shutter2":
-            devices.append(dev.sutter.Shutter(name, core, shutter="B", **params))
-        elif device == "microfluidic_chip":
-            devices.append(dev.microfluidic.Chip(name, valves, **params))
-        elif device == "microfluidic_minichip":
-            devices.append(dev.microfluidic.MiniChip(name, valves, **params))
-        elif device == "microfluidic_mux":
-            devices.append(dev.microfluidic.Mux(name, valves, **params))
-        elif device == "microfluidic_valves":
-            devices.append(dev.microfluidic.Valves(name, **params))
-            valves = devices[-1]
-        elif device == "sola_light":
-            devices.append(dev.lumencor.Light(name, core, version="sola", **params))
-        elif device == "spectra_light":
-            devices.append(dev.lumencor.Light(name, core, version="spectra", **params))
-        elif device == "thor_light":
-            devices.append(dev.thor.Light(name, **params))
-        elif device == "ti_filter1":
-            devices.append(dev.ti.Filter(name, core, filter=1, **params))
-        elif device == "ti_filter2":
-            devices.append(dev.ti.Filter(name, core, filter=2, **params))
-        elif device == "ti_lightpath":
-            devices.append(dev.ti.LightPath(name, core, **params))
-        elif device == "ti_focus":
-            devices.append(dev.ti.Focus(name, core))
-        elif device == "ti_objective":
-            devices.append(dev.ti.Objective(name, core, **params))
-        elif device == "ti2_filter1":
-            devices.append(dev.ti2.Filter(name, core, filter=1, **params))
-        elif device == "ti2_filter2":
-            devices.append(dev.ti2.Filter(name, core, filter=2, **params))
-        elif device == "ti2_shutter1":
-            devices.append(dev.ti2.Shutter(name, core, shutter=1))
-        elif device == "ti2_shutter2":
-            devices.append(dev.ti2.Shutter(name, core, shutter=2))
-        elif device == "ti2_lightpath":
-            devices.append(dev.ti2.LightPath(name, core, **params))
-        elif device == "ti2_focus":
-            devices.append(dev.ti2.Focus(name, core))
-        elif device == "ti2_objective":
-            devices.append(dev.ti2.Objective(name, core, **params))
-        elif device == "zyla_camera":
-            devices.append(dev.zyla.Camera(name, core, **params))
-        else:
-            raise ValueError(f"Device {device} is not recognized.")
+        match device:
+            case "asi_stage":
+                devices.append(dev.asi.Stage(name, core, **params))
+            case "asi_zstage":
+                devices.append(dev.asi.Focus(name, core, **params))
+            case "demo_camera":
+                devices.append(dev.demo.Camera(name, core))
+            case "demo_filter":
+                devices.append(dev.demo.Filter(name, core, **params))
+            case "demo_stage":
+                devices.append(dev.demo.Stage(name, core))
+            case "demo_valves":
+                devices.append(dev.demo.Valves(name, **params))
+            case "fluidic_sipper":
+                devices.append(dev.fluidic.Sipper(name, **params))
+            case "fluigent_flowcontroller":
+                devices.append(dev.fluigent.FlowController(name, **params))
+            case "lambda_filter1":
+                devices.append(dev.sutter.Filter(name, core, filter="A", **params))
+            case "lambda_filter2":
+                devices.append(dev.sutter.Filter(name, core, filter="B", **params))
+            case "lambda_filter3":
+                devices.append(dev.sutter.Filter(name, core, filter="C", **params))
+            case "lambda_shutter1":
+                devices.append(dev.sutter.Shutter(name, core, shutter="A", **params))
+            case "lambda_shutter2":
+                devices.append(dev.sutter.Shutter(name, core, shutter="B", **params))
+            case "microfluidic_chip":
+                devices.append(dev.microfluidic.Chip(name, valves, **params))
+            case "microfluidic_minichip":
+                devices.append(dev.microfluidic.MiniChip(name, valves, **params))
+            case "microfluidic_mux":
+                devices.append(dev.microfluidic.Mux(name, valves, **params))
+            case "microfluidic_valves":
+                devices.append(dev.microfluidic.Valves(name, **params))
+                valves = devices[-1]
+            case "sola_light":
+                devices.append(dev.lumencor.Light(name, core, version="sola", **params))
+            case "spectra_light":
+                devices.append(dev.lumencor.Light(name, core, version="spectra", **params))
+            case "thor_light":
+                devices.append(dev.thor.Light(name, **params))
+            case "ti_filter1":
+                devices.append(dev.ti.Filter(name, core, filter=1, **params))
+            case "ti_filter2":
+                devices.append(dev.ti.Filter(name, core, filter=2, **params))
+            case "ti_lightpath":
+                devices.append(dev.ti.LightPath(name, core, **params))
+            case "ti_focus":
+                devices.append(dev.ti.Focus(name, core))
+            case "ti_objective":
+                devices.append(dev.ti.Objective(name, core, **params))
+            case "ti2_filter1":
+                devices.append(dev.ti2.Filter(name, core, filter=1, **params))
+            case "ti2_filter2":
+                devices.append(dev.ti2.Filter(name, core, filter=2, **params))
+            case "ti2_shutter1":
+                devices.append(dev.ti2.Shutter(name, core, shutter=1))
+            case "ti2_shutter2":
+                devices.append(dev.ti2.Shutter(name, core, shutter=2))
+            case "ti2_lightpath":
+                devices.append(dev.ti2.LightPath(name, core, **params))
+            case "ti2_focus":
+                devices.append(dev.ti2.Focus(name, core))
+            case "ti2_objective":
+                devices.append(dev.ti2.Objective(name, core, **params))
+            case "zyla_camera":
+                devices.append(dev.zyla.Camera(name, core, **params))
+            case _:
+                raise ValueError(f"Device {device} is not recognized.")
 
     return Control(core, devices=devices)
 
