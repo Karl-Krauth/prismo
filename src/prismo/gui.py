@@ -126,7 +126,9 @@ class GUI:
                 xp.coords[dim_name] = coords
 
         store = zr.storage.LocalStore(self._file)
-        compressor = zr.codecs.BloscCodec(cname="zstd", clevel=5, shuffle=zr.codecs.BloscShuffle.bitshuffle)
+        compressor = zr.codecs.BloscCodec(
+            cname="zstd", clevel=5, shuffle=zr.codecs.BloscShuffle.bitshuffle
+        )
 
         for attr_name, attr in self._attrs.items():
             xp.attrs[attr_name] = attr
@@ -141,9 +143,7 @@ class GUI:
         # Xarray/Dask don't natively support disk-writeable zarr arrays so we have to manually
         # load the zarr array and patch in a modified dask array that writes to disk when
         # __setitem__ is called.
-        zarr_tiles = zr.open(
-            store, path=f"{name}/tile", mode="a"
-        )
+        zarr_tiles = zr.open(store, path=f"{name}/tile", mode="a")
         tiles = da.from_zarr(zarr_tiles)
         tiles.__class__ = DiskArray
         tiles._zarr_array = zarr_tiles
