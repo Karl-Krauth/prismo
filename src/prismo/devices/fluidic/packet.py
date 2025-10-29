@@ -2,6 +2,7 @@ from collections.abc import Buffer
 import serial
 from serial.tools import list_ports
 
+
 class PacketStream:
     def __init__(self, timeout_s: int = 1):
         for port in list_ports.comports():
@@ -12,7 +13,7 @@ class PacketStream:
                     result = self.read()
                     if len(result) == 1 and result[0] == 0:
                         break
-                except:
+                except Exception:
                     pass
                 self._socket.close()
                 self._socket = None
@@ -40,8 +41,6 @@ class PacketStream:
             out[offset_idx] = offset
             out.append(0)
 
-        print(data.hex())
-        print(out.hex())
         self._socket.write(out)
 
     def read(self) -> bytearray:
@@ -51,7 +50,6 @@ class PacketStream:
 
         out = bytearray()
         while size != 0:
-            print(f"Reading chunk of size {size}")
             buf = self._timeout_read(size - 1)
             if any(b == 0 for b in buf):
                 while self._timeout_read(1)[0] != 0:

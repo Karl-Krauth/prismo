@@ -1,5 +1,4 @@
 import contextlib
-import enum
 import re
 import serial
 import struct
@@ -34,8 +33,6 @@ class FlowController:
         self._socket = packet.PacketStream()
 
     def set_rpm(self, rpm: float):
-        print("A")
-        print(Code.SET_PUMP_RPM, rpm)
         request = struct.pack(">Bd", Code.SET_PUMP_RPM, rpm)
         self._socket.write(request)
         self.read_packet(assert_code=Code.SET_PUMP_RPM)
@@ -76,7 +73,20 @@ class FlowController:
 
 
 class Sipper:
-    def __init__(self, name, cnc_port, pump_port, valve_port, a1_pos, h12_pos, z_bottom, mapping=None, x_max=7500, y_max=6000, z_max=3000):
+    def __init__(
+        self,
+        name,
+        cnc_port,
+        pump_port,
+        valve_port,
+        a1_pos,
+        h12_pos,
+        z_bottom,
+        mapping=None,
+        x_max=7500,
+        y_max=6000,
+        z_max=3000,
+    ):
         self.name = name
         self._cnc_socket = serial.Serial(cnc_port, baudrate=9600, timeout=30)
         self._valve_socket = serial.Serial(valve_port, baudrate=9600, timeout=1)
@@ -273,6 +283,7 @@ def atomic_msg(socket, sleep_time=0.2):
         time.sleep(sleep_time)
         socket.reset_input_buffer()
         raise e
+
 
 def read_byte_str(socket):
     received_bytes = bytearray()
