@@ -1,20 +1,77 @@
 import contextlib
+import enum
 import re
 import serial
 import struct
 import time
+from dataclasses import dataclass
+from enum import IntEnum
 
 import numpy as np
 
+import packet
+
+
+class Code(IntEnum):
+    FLOW_SENSOR_INFO = 0x00
+    SET_PUMP_RPM = 0x01
+    FAIL = 0xFF
+
+
+@dataclass
+class SensorInfo:
+    air: bool
+    high_flow: bool
+    exp_smoothing: bool
+    ul_per_min: float
+    degrees_c: float
+
+
 class FlowController:
     def __init__(self, name, port):
-        self._socket = serial.Serial(port, baudrate=115200, timeout=1)
+        self.name = name
+        self._socket = packet.PacketStream(port)
 
-    def write(self):
-        self._socket.write(b"\x01\x01\x00")
+    def set_rpm(self, rpm: float):
+        print("A")
+        print(Code.SET_PUMP_RPM, rpm)
+        request = struct.pack(">Bd", Code.SET_PUMP_RPM, rpm)
+        self._socket.write(request)
+        self.read_packet(assert_code=Code.SET_PUMP_RPM)
 
-    def read(self):
-        return self._socket.read(3)
+    def air(self) -> bool:
+        return self.sensor_info().air
+
+    def high_flow(self) -> bool:
+        return self.sensor_info().high_flow
+
+    def exp_smoothing(self) -> bool:
+        return self.sensor_info().exp_smoothing
+
+    def flow_rate(self) -> float:
+        return self.sensor_info().ul_per_min
+
+    def temperature(self) -> float:
+        return self.sensor_info().degrees_c
+
+    def sensor_info(self) -> SensorInfo:
+        request = struct.pack(">B", Code.FLOW_SENSOR_INFO)
+        self._socket.write(request)
+        return self.read_packet(assert_code=Code.FLOW_SENSOR_INFO)
+
+    def read_packet(self, assert_code=None):
+        response = self._socket.read()
+        code = struct.unpack(">B", response[:1])[0]
+        if assert_code is not None and code != assert_code:
+            raise RuntimeError(f"Expected {assert_code} got {code=}.")
+
+        match code:
+            case Code.FLOW_SENSOR_INFO:
+                return SensorInfo(*struct.unpack(">???dd", response[1:]))
+            case Code.SET_PUMP_RPM:
+                return None
+            case _:
+                raise RuntimeError(f"Unknown response {code=}.")
 
 
 class Sipper:
