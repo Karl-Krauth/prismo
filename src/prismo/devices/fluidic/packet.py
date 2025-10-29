@@ -1,9 +1,23 @@
 from collections.abc import Buffer
 import serial
+from serial.tools import list_ports
 
 class PacketStream:
-    def __init__(self, port: str, timeout_s: int = 1):
-        self._socket = serial.Serial(port, baudrate=115200, timeout=timeout_s)
+    def __init__(self, timeout_s: int = 1):
+        for port in list_ports.comports():
+            if port.manufacturer is not None and "Espressif" in port.manufacturer:
+                self._socket = serial.Serial(port.device, baudrate=115200, timeout=timeout_s)
+                try:
+                    self.write(bytes([0]))
+                    result = self.read()
+                    if len(result) == 1 and result[0] == 0:
+                        break
+                except:
+                    pass
+                self._socket.close()
+                self._socket = None
+        if self._socket is None:
+            raise ConnectionError("Could not find a valid device.")
 
     def write(self, request: Buffer):
         data = memoryview(request).cast("B")

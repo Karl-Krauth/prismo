@@ -13,8 +13,9 @@ import packet
 
 
 class Code(IntEnum):
-    FLOW_SENSOR_INFO = 0x00
-    SET_PUMP_RPM = 0x01
+    INIT = 0x00
+    FLOW_SENSOR_INFO = 0x01
+    SET_PUMP_RPM = 0x02
     FAIL = 0xFF
 
 
@@ -28,9 +29,9 @@ class SensorInfo:
 
 
 class FlowController:
-    def __init__(self, name, port):
+    def __init__(self, name):
         self.name = name
-        self._socket = packet.PacketStream(port)
+        self._socket = packet.PacketStream()
 
     def set_rpm(self, rpm: float):
         print("A")
