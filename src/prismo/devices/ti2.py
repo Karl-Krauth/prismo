@@ -151,8 +151,8 @@ class Shutter:
         self.open = new_state == "open"
 
 
-class Light:
-    def __init__(self, name, core, shutter):
+class OverheadLight:
+    def __init__(self, name, core):
         self.name = name
         self._core = core
         if "ti2_scope" not in core.getLoadedDevices():

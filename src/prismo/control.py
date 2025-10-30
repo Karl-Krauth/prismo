@@ -125,12 +125,12 @@ def load(config, path=None):
                 devices.append(dev.ti2.Filter(name, core, filter=1, **params))
             case "ti2_filter2":
                 devices.append(dev.ti2.Filter(name, core, filter=2, **params))
+            case "ti2_overheadlight":
+                devices.append(dev.ti2.OverheadLight(name, core, **params))
             case "ti2_shutter1":
                 devices.append(dev.ti2.Shutter(name, core, shutter=1))
             case "ti2_shutter2":
                 devices.append(dev.ti2.Shutter(name, core, shutter=2))
-            case "ti2_light":
-                devices.append(dev.ti2.Light(name, core, **params))
             case "ti2_lightpath":
                 devices.append(dev.ti2.LightPath(name, core, **params))
             case "ti2_focus":
