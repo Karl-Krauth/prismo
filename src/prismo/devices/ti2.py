@@ -151,6 +151,37 @@ class Shutter:
         self.open = new_state == "open"
 
 
+class Light:
+    def __init__(self, name, core, shutter):
+        self.name = name
+        self._core = core
+        if "ti2_scope" not in core.getLoadedDevices():
+            core.loadDevice("ti2_scope", "NikonTi2", "Ti2-E__0")
+            core.initializeDevice("ti2_scope")
+        core.loadDevice(name, "NikonTi2", f"DiaLamp")
+        core.setParentLabel(name, "ti2_scope")
+        core.initializeDevice(name)
+
+    def wait(self):
+        self._core.waitForDevice(self.name)
+
+    @property
+    def open(self):
+        return self._core.getShutterOpen(self.name)
+
+    @open.setter
+    def open(self, new_state):
+        self._core.setShutterOpen(self.name, new_state)
+
+    @property
+    def state(self):
+        return "open" if self.open else "closed"
+
+    @state.setter
+    def state(self, new_state):
+        self.open = new_state == "open"
+
+
 class Focus:
     def __init__(self, name, core):
         self.name = name

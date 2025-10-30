@@ -129,6 +129,8 @@ def load(config, path=None):
                 devices.append(dev.ti2.Shutter(name, core, shutter=1))
             case "ti2_shutter2":
                 devices.append(dev.ti2.Shutter(name, core, shutter=2))
+            case "ti2_light":
+                devices.append(dev.ti2.Light(name, core, **params))
             case "ti2_lightpath":
                 devices.append(dev.ti2.LightPath(name, core, **params))
             case "ti2_focus":
