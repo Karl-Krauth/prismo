@@ -35,7 +35,7 @@ class GUI:
             viewer = napari.Viewer()
             relay = Relay(pipe)
             # Save the client in a variable so it doesn't get garbage collected.
-            client = init_client(viewer, relay)
+            _client = init_client(viewer, relay)
             napari.run()
             pipe.close()
 
@@ -169,7 +169,7 @@ class LiveClient:
         self._viewer = viewer
         self._relay = relay
         img = self._relay.get("img")
-        self._viewer.add_image(img, name="live")
+        self._viewer.add_image(img, name="live", interpolation="bicubic")
         self._timer = QTimer()
         self._timer.timeout.connect(self.update_img)
         self._timer.start(1000 // 30)
@@ -219,7 +219,7 @@ class AcqClient:
 
         if tiled or multi:
             img = self._relay.get("img")
-            self._viewer.add_image(img, name="live")
+            self._viewer.add_image(img, name="live", interpolation="bicubic")
             self._live_timer.timeout.connect(self.update_img)
             self._live_timer.start(1000 // 30)
             if tiled:
@@ -277,6 +277,7 @@ class AcqClient:
                 name=layer_names,
                 multiscale=False,
                 cache=False,
+                interpolation="bicubic",
             )
             new_dims = tuple(d for d in img.dims if d not in viewer_dims and d != "channel")
             self._viewer.dims.axis_labels = new_dims + viewer_dims
