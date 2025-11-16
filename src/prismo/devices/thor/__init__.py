@@ -1,5 +1,7 @@
 import os
 
+__all__ = ["Light"]
+
 # Thorlabs drivers are only supported in Windows.
 if os.name == "nt":
     # Enable local dll loading for editable pip installs.

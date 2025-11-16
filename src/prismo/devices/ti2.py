@@ -158,7 +158,7 @@ class OverheadLight:
         if "ti2_scope" not in core.getLoadedDevices():
             core.loadDevice("ti2_scope", "NikonTi2", "Ti2-E__0")
             core.initializeDevice("ti2_scope")
-        core.loadDevice(name, "NikonTi2", f"DiaLamp")
+        core.loadDevice(name, "NikonTi2", "DiaLamp")
         core.setParentLabel(name, "ti2_scope")
         core.initializeDevice(name)
 
