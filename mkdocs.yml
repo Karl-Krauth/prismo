@@ -1,7 +1,18 @@
 site_name: Prismo
 
 nav:
-  - index.md
+  - Getting Started: index.md
+  - Core Concepts:
+    - core/config_control.md
+    - core/experiment.md
+    - core/image_acq.md
+  - Advanced Concepts:
+    - advanced/data_format.md
+    - advanced/magnify.md
+    - advanced/utils.md
+    - advanced/custom_hardware.md
+  - API Reference:
+    - api/controller.md
 
 theme:
   name: material
