@@ -14,7 +14,7 @@ dependencies = [
     "pybind11>=2.13.5",
     "pymmcore",
     "pymodbus>=3.9.0",
-    "pyqt5>=5.15.11",
+    "pyqt6>=6.10.0",
     "pyserial>=3.5",
     "xarray[io]>=2025.01.0",
     "zarr>=3.0.0",
