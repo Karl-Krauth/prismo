@@ -1,10 +1,10 @@
+from dataclasses import dataclass
+from enum import IntEnum
 import contextlib
 import re
 import serial
 import struct
 import time
-from dataclasses import dataclass
-from enum import IntEnum
 
 import numpy as np
 
@@ -35,29 +35,34 @@ class FlowController:
     def set_rpm(self, rpm: float):
         request = struct.pack(">Bd", Code.SET_PUMP_RPM, rpm)
         self._socket.write(request)
-        self.read_packet(assert_code=Code.SET_PUMP_RPM)
+        self._read_packet(assert_code=Code.SET_PUMP_RPM)
 
+    @property
     def air(self) -> bool:
         return self.sensor_info().air
 
+    @property
     def high_flow(self) -> bool:
         return self.sensor_info().high_flow
 
+    @property
     def exp_smoothing(self) -> bool:
         return self.sensor_info().exp_smoothing
 
+    @property
     def flow_rate(self) -> float:
         return self.sensor_info().ul_per_min
 
+    @property
     def temperature(self) -> float:
         return self.sensor_info().degrees_c
 
     def sensor_info(self) -> SensorInfo:
         request = struct.pack(">B", Code.FLOW_SENSOR_INFO)
         self._socket.write(request)
-        return self.read_packet(assert_code=Code.FLOW_SENSOR_INFO)
+        return self._read_packet(assert_code=Code.FLOW_SENSOR_INFO)
 
-    def read_packet(self, assert_code=None):
+    def _read_packet(self, assert_code=None):
         response = self._socket.read()
         code = struct.unpack(">B", response[:1])[0]
         if assert_code is not None and code != assert_code:
