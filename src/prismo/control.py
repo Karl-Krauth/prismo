@@ -68,6 +68,8 @@ def load(config, path=None):
         if name in ports:
             continue
 
+        # TODO: Pull out valves so config isn't order dependent.
+        valves = None
         device = params.pop("device")
         match device:
             case "asi_stage":
