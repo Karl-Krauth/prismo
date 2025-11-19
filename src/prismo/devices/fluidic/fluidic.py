@@ -1,14 +1,13 @@
-from dataclasses import dataclass
-from enum import IntEnum
 import contextlib
 import re
-import serial
 import struct
 import time
+from dataclasses import dataclass
+from enum import IntEnum
 
 import numpy as np
-
 import packet
+import serial
 
 
 class Code(IntEnum):
@@ -238,10 +237,7 @@ class Sipper:
             self._well = "none"
             return
 
-        if new_well in self._mapping:
-            pos = self._mapping[new_well]
-        else:
-            pos = new_well
+        pos = self._mapping.get(new_well, new_well)
 
         if not re.fullmatch(r"[A-H]1?[0-9]", pos) or int(pos[1:]) > 12:
             raise ValueError("Plate position must be in the format [A-Z][1-12].")

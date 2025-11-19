@@ -96,7 +96,7 @@ class Objective:
                 )
             for i, state in enumerate(self.states):
                 self._core.defineStateLabel(name, i, state)
-        self.zooms = {state: zoom for state, zoom in zip(self.states, zooms)}
+        self.zooms = {state: zoom for state, zoom in zip(self.states, zooms, strict=True)}
 
     def wait(self):
         self._core.waitForDevice(self.name)

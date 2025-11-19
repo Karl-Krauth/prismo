@@ -16,18 +16,12 @@ class Valves:
         return {v: self[v] for v in self._valves}
 
     def __getitem__(self, key):
-        if isinstance(key, int):
-            addr = key
-        else:
-            addr = self._valves.index(key)
+        addr = key if isinstance(key, int) else self._valves.index(key)
         addr += 512
         return 0 if self._client.read_coils(addr).bits[0] else 1
 
     def __setitem__(self, key, value):
-        if isinstance(key, int):
-            addr = key
-        else:
-            addr = self._valves.index(key)
+        addr = key if isinstance(key, int) else self._valves.index(key)
         self._client.write_coil(addr, (value == "off") or (value == 0))
 
 
@@ -203,7 +197,7 @@ class Chip:
     def __init__(self, name, valves, mapping):
         # We can't directly set self._mapping = mapping since our overriden __setattr__
         # depends on self._mapping being set.
-        super(Chip, self).__setattr__("_mapping", mapping)
+        super().__setattr__("_mapping", mapping)
         self.name = name
         self._valves = valves
 
@@ -217,7 +211,7 @@ class Chip:
         if key in self._mapping:
             self._valves[self._mapping[key]] = "off" if state == "open" or not state else "on"
         else:
-            super(Chip, self).__setattr__(key, state)
+            super().__setattr__(key, state)
 
     def __getitem__(self, key):
         return self.__getattr__[key]

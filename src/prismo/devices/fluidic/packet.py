@@ -1,4 +1,5 @@
 from collections.abc import Buffer
+
 import serial
 from serial.tools import list_ports
 

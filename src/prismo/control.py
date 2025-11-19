@@ -47,9 +47,7 @@ def load(config, path=None):
             raise ValueError(f"{name} requires a port to be specified.")
 
         port = params["port"]
-        if device == "asi_stage":
-            ports[port] = {**port_defaults, "AnswerTimeout": 2000.0}
-        elif device == "asi_zstage":
+        if device == "asi_stage" or device == "asi_zstage":
             ports[port] = {**port_defaults, "AnswerTimeout": 2000.0}
         elif device in ("lambda_filter1", "lambda_filter2", "lambda_shutter1", "lambda_shutter2"):
             ports[port] = {**port_defaults, "AnswerTimeout": 2000.0, "BaudRate": 128000}
@@ -151,7 +149,7 @@ class Control:
     def __init__(self, core, devices):
         # We can't directly set self.devices = devices since our overriden method
         # depends on self.devices being set.
-        super(Control, self).__setattr__("devices", devices)
+        super().__setattr__("devices", devices)
 
         self._core = core
         self._core.setTimeoutMs(100000)
@@ -268,7 +266,7 @@ class Control:
             if name == device.name and isinstance(device, dev.State):
                 device.state = value
                 return
-        super(Control, self).__setattr__(name, value)
+        super().__setattr__(name, value)
 
     def close(self):
         self._core.reset()
