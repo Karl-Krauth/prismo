@@ -98,6 +98,8 @@ def load(config, path=None):
                 devices.append(dev.sutter.Shutter(name, core, shutter="A", **params))
             case "lambda_shutter2":
                 devices.append(dev.sutter.Shutter(name, core, shutter="B", **params))
+            case "manual_objective":
+                devices.append(dev.manual.Objective(name, **params))
             case "microfluidic_chip":
                 devices.append(dev.microfluidic.Chip(name, valves, **params))
             case "microfluidic_minichip":
