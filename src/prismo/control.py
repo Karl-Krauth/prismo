@@ -74,6 +74,8 @@ def load(config, path=None):
                 devices.append(dev.asi.Stage(name, core, **params))
             case "asi_zstage":
                 devices.append(dev.asi.Focus(name, core, **params))
+            case "bsi_camera":
+                devices.append(dev.bsi.Camera(name, core, **params))
             case "demo_camera":
                 devices.append(dev.demo.Camera(name, core))
             case "demo_filter":
