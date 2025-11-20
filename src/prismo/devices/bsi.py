@@ -6,7 +6,7 @@ class Camera:
         self.name = name
         self._core = core
         self._flip = flip
-        core.loadDevice(name, "BSI", "PVCAM")
+        core.loadDevice(name, "PVCAM", "Camera-1")
         core.initializeDevice(name)
 
     def snap(self) -> np.ndarray:
