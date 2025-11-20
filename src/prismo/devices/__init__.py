@@ -1,5 +1,6 @@
 __all__ = [
     "asi",
+    "bsi",
     "demo",
     "fluidic",
     "fluigent",
@@ -19,5 +20,5 @@ __all__ = [
     "Zoom",
 ]
 
-from . import asi, demo, fluidic, fluigent, lumencor, microfluidic, sutter, thor, ti, ti2, zyla
+from . import asi, bsi, demo, fluidic, fluigent, lumencor, microfluidic, sutter, thor, ti, ti2, zyla
 from .protocols import Camera, Focus, Stage, State, Valved, Wait, Zoom
