@@ -219,6 +219,14 @@ class Chip:
     def __setitem__(self, key, value):
         self.__setattr__(key, value)
 
+    def close_all(self):
+        for v in self.valves:
+            self[v] = "closed"
+
+    def open_all(self):
+        for v in self.valves:
+            self[v] = "open"
+
     @property
     def valves(self):
         return {k: self.__getattr__(k) == "closed" for k in self._mapping}
