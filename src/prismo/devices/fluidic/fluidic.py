@@ -1,24 +1,96 @@
 import contextlib
 import re
-import serial
 import struct
 import time
+from dataclasses import dataclass
+from enum import IntEnum
 
 import numpy as np
+import packet
+import serial
+
+
+class Code(IntEnum):
+    INIT = 0x00
+    FLOW_SENSOR_INFO = 0x01
+    SET_PUMP_RPM = 0x02
+    FAIL = 0xFF
+
+
+@dataclass
+class SensorInfo:
+    air: bool
+    high_flow: bool
+    exp_smoothing: bool
+    ul_per_min: float
+    degrees_c: float
+
 
 class FlowController:
-    def __init__(self, name, port):
-        self._socket = serial.Serial(port, baudrate=115200, timeout=1)
+    def __init__(self, name):
+        self.name = name
+        self._socket = packet.PacketStream()
 
-    def write(self):
-        self._socket.write(b"\x01\x01\x00")
+    def set_rpm(self, rpm: float):
+        request = struct.pack(">Bd", Code.SET_PUMP_RPM, rpm)
+        self._socket.write(request)
+        self._read_packet(assert_code=Code.SET_PUMP_RPM)
 
-    def read(self):
-        return self._socket.read(3)
+    @property
+    def air(self) -> bool:
+        return self.sensor_info().air
+
+    @property
+    def high_flow(self) -> bool:
+        return self.sensor_info().high_flow
+
+    @property
+    def exp_smoothing(self) -> bool:
+        return self.sensor_info().exp_smoothing
+
+    @property
+    def flow_rate(self) -> float:
+        return self.sensor_info().ul_per_min
+
+    @property
+    def temperature(self) -> float:
+        return self.sensor_info().degrees_c
+
+    def sensor_info(self) -> SensorInfo:
+        request = struct.pack(">B", Code.FLOW_SENSOR_INFO)
+        self._socket.write(request)
+        return self._read_packet(assert_code=Code.FLOW_SENSOR_INFO)
+
+    def _read_packet(self, assert_code=None):
+        response = self._socket.read()
+        code = struct.unpack(">B", response[:1])[0]
+        if assert_code is not None and code != assert_code:
+            raise RuntimeError(f"Expected {assert_code} got {code=}.")
+
+        match code:
+            case Code.FLOW_SENSOR_INFO:
+                return SensorInfo(*struct.unpack(">???dd", response[1:]))
+            case Code.SET_PUMP_RPM:
+                return None
+            case _:
+                raise RuntimeError(f"Unknown response {code=}.")
 
 
 class Sipper:
-    def __init__(self, name, cnc_port, pump_port, valve_port, a1_pos, h12_pos, z_bottom, mapping=None, x_max=7500, y_max=6000, z_max=3000):
+    def __init__(
+        self,
+        name,
+        cnc_port,
+        pump_port,
+        valve_port,
+        a1_pos,
+        h12_pos,
+        z_bottom,
+        mapping=None,
+        x_max=7500,
+        y_max=6000,
+        z_max=3000,
+    ):
         self.name = name
         self._cnc_socket = serial.Serial(cnc_port, baudrate=9600, timeout=30)
         self._valve_socket = serial.Serial(valve_port, baudrate=9600, timeout=1)
@@ -165,10 +237,7 @@ class Sipper:
             self._well = "none"
             return
 
-        if new_well in self._mapping:
-            pos = self._mapping[new_well]
-        else:
-            pos = new_well
+        pos = self._mapping.get(new_well, new_well)
 
         if not re.fullmatch(r"[A-H]1?[0-9]", pos) or int(pos[1:]) > 12:
             raise ValueError("Plate position must be in the format [A-Z][1-12].")
@@ -215,6 +284,7 @@ def atomic_msg(socket, sleep_time=0.2):
         time.sleep(sleep_time)
         socket.reset_input_buffer()
         raise e
+
 
 def read_byte_str(socket):
     received_bytes = bytearray()

@@ -96,7 +96,7 @@ class Objective:
                 )
             for i, state in enumerate(self.states):
                 self._core.defineStateLabel(name, i, state)
-        self.zooms = {state: zoom for state, zoom in zip(self.states, zooms)}
+        self.zooms = {state: zoom for state, zoom in zip(self.states, zooms, strict=True)}
 
     def wait(self):
         self._core.waitForDevice(self.name)
@@ -128,6 +128,37 @@ class Shutter:
             core.loadDevice("ti2_scope", "NikonTi2", "Ti2-E__0")
             core.initializeDevice("ti2_scope")
         core.loadDevice(name, "NikonTi2", f"Turret{shutter}Shutter")
+        core.setParentLabel(name, "ti2_scope")
+        core.initializeDevice(name)
+
+    def wait(self):
+        self._core.waitForDevice(self.name)
+
+    @property
+    def open(self):
+        return self._core.getShutterOpen(self.name)
+
+    @open.setter
+    def open(self, new_state):
+        self._core.setShutterOpen(self.name, new_state)
+
+    @property
+    def state(self):
+        return "open" if self.open else "closed"
+
+    @state.setter
+    def state(self, new_state):
+        self.open = new_state == "open"
+
+
+class OverheadLight:
+    def __init__(self, name, core):
+        self.name = name
+        self._core = core
+        if "ti2_scope" not in core.getLoadedDevices():
+            core.loadDevice("ti2_scope", "NikonTi2", "Ti2-E__0")
+            core.initializeDevice("ti2_scope")
+        core.loadDevice(name, "NikonTi2", "DiaLamp")
         core.setParentLabel(name, "ti2_scope")
         core.initializeDevice(name)
 

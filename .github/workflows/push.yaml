@@ -5,9 +5,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/ruff-action@v1
+      - uses: astral-sh/ruff-action@v3
         with:
-          args: 'check --select I .'
-      - uses: astral-sh/ruff-action@v1
+          args: 'check'
+      - uses: astral-sh/ruff-action@v3
         with:
           args: 'format --check'

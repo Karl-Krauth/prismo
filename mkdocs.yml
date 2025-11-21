@@ -1,0 +1,36 @@
+site_name: Prismo
+
+nav:
+  - Getting Started: index.md
+  - Core Concepts:
+    - core/config_control.md
+    - core/experiment.md
+    - core/image_acq.md
+  - Advanced Concepts:
+    - advanced/data_format.md
+    - advanced/magnify.md
+    - advanced/utils.md
+    - advanced/custom_hardware.md
+  - API Reference:
+    - api/controller.md
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+plugins:
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy

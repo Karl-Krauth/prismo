@@ -1,12 +1,12 @@
 [project]
 name = "prismo"
-version = "0.0.1"
+version = "0.1.0"
 description = "A microscopy image acquisition toolkit."
 authors = [
     {name = "Karl Krauth", email = "karl.krauth@gmail.com"},
 ]
 readme = "README.md"
-requires-python = ">=3.8, <3.14"
+requires-python = ">=3.12"
 
 dependencies = [
     "multiprocess>=0.70.0",
@@ -14,46 +14,52 @@ dependencies = [
     "pybind11>=2.13.5",
     "pymmcore",
     "pymodbus>=3.9.0",
+    "pyqt6>=6.10.0",
+    "pyserial>=3.5",
     "xarray[io]>=2025.01.0",
     "zarr>=3.0.0",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.sdist]
-exclude = ["docs", "tests", "examples", "static"]
+[dependency-groups]
+dev = [
+    "jupyter-core>=5.9.1",
+    "jupyterlab>=4.5.0",
+    "mkdocs-material>=9.7.0",
+    "mkdocstrings[python]>=0.30.1",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.2",
+    "ty>=0.0.1a24",
+]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py312"
+exclude = [
+    "src/prismo/devices/fluigent",
+]
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    "W",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
 
 [tool.ruff.format]
 docstring-code-format = true
 
-[tool.mypy]
-python_version = "3.10"
+[build-system]
+requires = ["uv_build>=0.9.5"]
+build-backend = "uv_build"
 
-# Disallow untyped definitions.
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-
-# None and optional handling
-no_implicit_optional = true
-
-# Configuring warnings
-warn_unused_ignores = true
-warn_no_return = true
-warn_return_any = true
-warn_redundant_casts = true
-
-# Misc things
-strict_equality = true
-
-# Config file
-warn_unused_configs = true
-
-ignore_missing_imports = true

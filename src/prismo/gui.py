@@ -35,7 +35,7 @@ class GUI:
             viewer = napari.Viewer()
             relay = Relay(pipe)
             # Save the client in a variable so it doesn't get garbage collected.
-            client = init_client(viewer, relay)
+            _client = init_client(viewer, relay)
             napari.run()
             pipe.close()
 
@@ -126,7 +126,9 @@ class GUI:
                 xp.coords[dim_name] = coords
 
         store = zr.storage.LocalStore(self._file)
-        compressor = zr.codecs.BloscCodec(cname="zstd", clevel=5, shuffle=zr.codecs.BloscShuffle.bitshuffle)
+        compressor = zr.codecs.BloscCodec(
+            cname="zstd", clevel=5, shuffle=zr.codecs.BloscShuffle.bitshuffle
+        )
 
         for attr_name, attr in self._attrs.items():
             xp.attrs[attr_name] = attr
@@ -135,15 +137,13 @@ class GUI:
             xp.to_dataset(promote_attrs=True, name="tile").to_zarr(
                 store, group=name, compute=False, encoding={"tile": {"compressors": compressor}}
             )
-        except ContainsGroupError:
-            raise FileExistsError(f"{self._file}/{name} already exists.")
+        except ContainsGroupError as e:
+            raise FileExistsError(f"{self._file}/{name} already exists.") from e
 
         # Xarray/Dask don't natively support disk-writeable zarr arrays so we have to manually
         # load the zarr array and patch in a modified dask array that writes to disk when
         # __setitem__ is called.
-        zarr_tiles = zr.open(
-            store, path=f"{name}/tile", mode="a"
-        )
+        zarr_tiles = zr.open(store, path=f"{name}/tile", mode="a")
         tiles = da.from_zarr(zarr_tiles)
         tiles.__class__ = DiskArray
         tiles._zarr_array = zarr_tiles
@@ -284,7 +284,7 @@ class AcqClient:
             self._viewer.dims.current_step = (0,) * len(new_dims) + self._viewer.dims.current_step[
                 -len(new_dims) :
             ]
-            # Save this array so we can set the contrast limits once a nonzero element gets added to it.
+            # Save this array so we can set the contrast limits once a nonzero element gets added.
             self._imgs[arr] = img
 
         """
@@ -295,7 +295,8 @@ class AcqClient:
                     layer_name = f"{arr}: {c}"
                     subimg = img.sel(channel=c)
                     if layer_name not in self._contrast_set and subimg.any():
-                        self._viewer.layers[layer_name].contrast_limits = (0, subimg.max().to_numpy())
+                        self._viewer.layers[layer_name].contrast_limits = (
+                                0, subimg.max().to_numpy())
                         self._contrast_set.add(layer_name)
             else:
                 if arr not in self._contrast_set and img.any():
